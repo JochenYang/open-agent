@@ -1,0 +1,52 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  "agent": {
+    "行者": {
+      "mode": "primary",
+      "prompt": "{file:.opencode/agents/行者.md}",
+      "description": "执行者，把事情做完",
+      "color": "#4F46E5"
+    },
+    "谋士": {
+      "mode": "primary",
+      "prompt": "{file:.opencode/agents/谋士.md}",
+      "description": "思考者，把问题想清楚",
+      "color": "#059669"
+    },
+    "明镜": {
+      "mode": "subagent",
+      "prompt": "{file:.opencode/agents/明镜.md}",
+      "description": "调试专家，快速定位问题",
+      "color": "#F97316"
+    },
+    "御史": {
+      "mode": "subagent",
+      "prompt": "{file:.opencode/agents/御史.md}",
+      "description": "审查专家，发现问题",
+      "color": "#8B5CF6"
+    },
+    "探路": {
+      "mode": "subagent",
+      "prompt": "{file:.opencode/agents/探路.md}",
+      "description": "探索专家，快速理解代码",
+      "color": "#6366F1"
+    },
+    "校验": {
+      "mode": "subagent",
+      "prompt": "{file:.opencode/agents/校验.md}",
+      "description": "测试专家，编写有效测试",
+      "color": "#EF4444"
+    }
+  },
+
+  "disable": {
+    "general": true,
+    "build": true,
+    "plan": true
+  },
+
+  "shortcuts": {
+    "switch_agent": "Tab"
+  }
+}
