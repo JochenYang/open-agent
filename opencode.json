@@ -14,5 +14,20 @@
     "explore": {
       "disable": true
     }
+  },
+  "permission": {
+    "bash": {
+      "git push*": "ask",
+      "npm publish*": "ask",
+      "pnpm publish*": "ask",
+      "yarn publish*": "ask",
+      "pip install*": "ask",
+      "rm *": "ask",
+      "rm -rf *": "ask",
+      "rm -fr *": "ask",
+      "del *": "ask",
+      "Remove-Item *": "ask",
+      "*": "allow"
+    }
   }
 }
