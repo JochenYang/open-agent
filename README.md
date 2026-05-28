@@ -1,14 +1,22 @@
+<div align="center">
+
 # Open Agent
 
 ### 为 OpenCode 深度定制的多代理工作流引擎
 
-`多代理编排` | `Plan-Execute-Review` | `审查门机制` | `自适应修复循环`
+[![License](https://img.shields.io/github/license/JochenYang/open-agent?style=flat-square&color=2563EB)](https://github.com/JochenYang/open-agent/blob/main/LICENSE)
+[![Stars](https://img.shields.io/github/stars/JochenYang/open-agent?style=flat-square&color=8B5CF6)](https://github.com/JochenYang/open-agent/stargazers)
+[![Compatibility](https://img.shields.io/badge/OpenCode-Compatible-EC4899?style=flat-square)](https://github.com/anomalyco/opencode)
+
+`多代理编排` • `Plan-Execute-Review` • `审查门机制` • `自适应修复回路`
+
+[特性说明](#特性) • [架构拓扑](#架构总览) • [代理一览](#代理一览) • [预置工作流](#工作流) • [快速安装](#快速开始)
+
+</div>
 
 ---
 
 **Open Agent** 是一套专为 OpenCode 打造的高级多代理协同开发系统。它通过引入 **中军**（团队总指挥）、**行者**（日常执行）、**谋士**（宏观决策）三主控核心，并协同 **10 个专长领域子代理**，将传统的单 Agent 编程模式升级为真正意义上的 AI 全栈软件工程团队，实现 Plan → Execute → Review 的全闭环自主协作。
-
-[特性说明](#特性) • [架构拓扑](#架构总览) • [代理定义](#代理一览) • [预置工作流](#工作流) • [快速安装](#快速开始)
 
 ---
 
