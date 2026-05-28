@@ -1,5 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
+  "description": "OpenCode 自定义 Agent 编排系统 — 多代理工作流引擎，含 13 个专长子代理、9 种工作流和审查门机制",
   "default_agent": "行者",
   "agent": {
     "build": {
