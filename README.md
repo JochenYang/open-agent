@@ -250,6 +250,21 @@ opencode agent list
 }
 ```
 
+### 多代理并发配置
+
+OpenCode 原生支持多代理在后台并发工作（例如并发的只读分析、多维度审查）。为了解锁真正的平台级多代理并发能力，您需要开启以下实验性功能环境变量：
+
+* **Windows (PowerShell)**:
+  ```powershell
+  $env:OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS="true"
+  ```
+* **Linux / macOS**:
+  ```bash
+  export OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true
+  ```
+
+开启该环境变量后，主代理将能够完整看到 `task` 编排工具的 `background` 参数，并根据我们设计的工作流自动拉起多个子代理进行并行的背景分析或代码审查，从而真正释放多代理系统的并行效能。
+
 ---
 
 ## 设计理念
