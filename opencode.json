@@ -16,18 +16,23 @@
     }
   },
   "permission": {
+    "external_directory": "allow",
     "bash": {
-      "git push*": "ask",
-      "npm publish*": "ask",
-      "pnpm publish*": "ask",
-      "yarn publish*": "ask",
-      "pip install*": "ask",
+      "*": "allow",
       "rm *": "ask",
       "rm -rf *": "ask",
       "rm -fr *": "ask",
       "del *": "ask",
+      "ri *": "ask",
+      "rd *": "ask",
+      "rmdir *": "ask",
+      "erase *": "ask",
       "Remove-Item *": "ask",
-      "*": "allow"
+      "Clear-Item *": "ask",
+      "unlink *": "ask",
+      "shred *": "ask",
+      "git rm*": "ask",
+      "cmdkey /delete*": "ask"
     }
   }
 }
