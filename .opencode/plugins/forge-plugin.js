@@ -1,0 +1,505 @@
+// @bun
+// Forge plugin — minimal tools for the Forge (compose-mode) workflow.
+//
+// Why this exists:
+// 1. The previous memory plugin was deleted due to instability issues.
+// 2. We need a thin set of tools that fit forge's actual workflow:
+//    - punchcard:   T1/T1.1 work-item tracking (replaces memory plugin's `task` tool)
+//    - dispatcher:  explicit pre-flight for subagent dispatch (avoids name confusion with
+//                   the upstream `task` tool — model must call dispatcher first, then `task`)
+//    - forge_check: lightweight stage checkpoints (no FTS5, no auto-dream)
+//
+// Storage layout (all under ~/.config/opencode/forge/):
+//   punchcard/<sessionId>/<TID>/progress.md   — frontmatter + body, one file per work-item
+//   checks/<sessionId>/<timestamp>.md         — one file per checkpoint
+//
+// No memory, no dream, no FTS5 — kept simple on purpose.
+
+import path from "path"
+import fs from "fs"
+import os from "os"
+import { createHash } from "crypto"
+
+const FORGE_ROOT = path.join(os.homedir(), ".config", "opencode", "forge")
+
+function projectHash(dir) {
+  return createHash("sha256").update(dir).digest("hex").slice(0, 12)
+}
+
+function projectDir(ctx) {
+  return ctx.directory ?? ctx.worktree ?? process.cwd()
+}
+
+function ensureDir(dir) {
+  try {
+    fs.mkdirSync(dir, { recursive: true })
+  } catch {}
+}
+
+function readText(p) {
+  try {
+    return fs.readFileSync(p, "utf-8")
+  } catch {
+    return undefined
+  }
+}
+
+function writeText(p, content) {
+  ensureDir(path.dirname(p))
+  fs.writeFileSync(p, content, "utf-8")
+}
+
+function listDirs(parent) {
+  try {
+    return fs
+      .readdirSync(parent, { withFileTypes: true })
+      .filter((d) => d.isDirectory())
+      .map((d) => d.name)
+  } catch {
+    return []
+  }
+}
+
+function uniq(s) {
+  return Array.from(new Set(s))
+}
+
+function parseFrontmatter(block) {
+  const out = {}
+  const lines = block.split("\n")
+  for (const raw of lines) {
+    const m = raw.match(/^([A-Za-z_]+):\s*(.*)$/)
+    if (!m) continue
+    out[m[1]] = m[2].replace(/^"(.*)"$/, "$1")
+  }
+  return out
+}
+
+const TID_RE = /^T(\d+)(?:\.(\d+))*$/
+
+// === punchcard: T1/T1.1 work-item tracking ===
+
+const PUNCHCARD_OPS = [
+  "create",
+  "list",
+  "get",
+  "start",
+  "block",
+  "unblock",
+  "done",
+  "abandon",
+  "rename",
+]
+
+function punchcardDir(project, sid) {
+  return path.join(FORGE_ROOT, "punchcard", project, sid)
+}
+function punchcardItemDir(project, sid, tid) {
+  return path.join(punchcardDir(project, sid), tid)
+}
+function punchcardItemFile(project, sid, tid) {
+  return path.join(punchcardItemDir(project, sid, tid), "progress.md")
+}
+
+function nextTid(project, sid, parentId) {
+  const records = punchcardList(project, sid)
+  if (!parentId) {
+    const used = new Set()
+    for (const r of records) {
+      if (r.parentId) continue
+      const m = r.id.match(/^T(\d+)$/)
+      if (m) used.add(Number(m[1]))
+    }
+    for (let i = 1; i < Number.MAX_SAFE_INTEGER; i++) {
+      if (!used.has(i)) return `T${i}`
+    }
+  } else {
+    const used = new Set()
+    const childRe = new RegExp(`^${parentId.replace(/\./g, "\\.")}\\.(\\d+)$`)
+    for (const r of records) {
+      const m = r.id.match(childRe)
+      if (m) used.add(Number(m[1]))
+    }
+    for (let i = 1; i < Number.MAX_SAFE_INTEGER; i++) {
+      if (!used.has(i)) return `${parentId}.${i}`
+    }
+  }
+  throw new Error("punchcard: TID space exhausted")
+}
+
+function punchcardRead(project, sid, tid) {
+  const file = punchcardItemFile(project, sid, tid)
+  const text = readText(file)
+  if (!text) return undefined
+  const m = text.match(/^---\n([\s\S]*?)\n---\n([\s\S]*)$/)
+  if (!m) return undefined
+  const meta = parseFrontmatter(m[1])
+  return {
+    id: tid,
+    summary: meta.summary ?? "",
+    status: meta.status ?? "open",
+    parentId: meta.parent_id || null,
+    createdAt: Number(meta.created_at ?? 0),
+    updatedAt: Number(meta.updated_at ?? 0),
+    body: m[2].trim(),
+    path: file,
+  }
+}
+
+function punchcardList(project, sid) {
+  const items = []
+  for (const tid of listDirs(punchcardDir(project, sid))) {
+    if (!TID_RE.test(tid)) continue
+    const r = punchcardRead(project, sid, tid)
+    if (r) items.push(r)
+  }
+  items.sort((a, b) => a.id.localeCompare(b.id))
+  return items
+}
+
+function punchcardRender(item) {
+  return [
+    "---",
+    `id: ${item.id}`,
+    `summary: ${item.summary}`,
+    `status: ${item.status}`,
+    `parent_id: ${item.parentId ?? ""}`,
+    `created_at: ${item.createdAt}`,
+    `updated_at: ${item.updatedAt}`,
+    "---",
+    "",
+    item.body ?? "",
+  ].join("\n")
+}
+
+function punchcardWrite(project, sid, item) {
+  writeText(punchcardItemFile(project, sid, item.id), punchcardRender(item))
+}
+
+const PUNCHCARD_TRANSITIONS = {
+  start: { from: ["open", "blocked"], to: "in_progress" },
+  block: { from: ["in_progress", "open"], to: "blocked" },
+  unblock: { from: ["blocked"], to: "open" },
+  done: { from: ["in_progress", "open"], to: "done" },
+  abandon: { from: ["done"], to: "abandoned", reverse: true },
+}
+
+const punchcardTool = {
+  description:
+    "T1/T1.1 work-item tracking. Operations: create | list | get | start | block | unblock | done | abandon | rename. Persists to ~/.config/opencode/forge/punchcard/. Use this to track each plan task with an explicit TID that subagent dispatch can reference. NEVER confuse with the upstream `task` tool — `task` dispatches subagents, `punchcard` tracks local work-item state.",
+  args: {
+    operation: {
+      type: "string",
+      description: "create | list | get | start | block | unblock | done | abandon | rename",
+    },
+    session_id: {
+      type: "string",
+      description: "Session id (defaults to current session)",
+    },
+    summary: {
+      type: "string",
+      description: "Task summary (required for create/rename)",
+    },
+    id: {
+      type: "string",
+      description: 'TID like T1, T1.1 — required for get/start/block/unblock/done/abandon/rename',
+    },
+    parent_id: {
+      type: "string",
+      description: "Parent TID for sub-tasks (optional, for create)",
+    },
+    body: {
+      type: "string",
+      description: "Initial body content (optional, for create)",
+    },
+    reason: {
+      type: "string",
+      description: "Reason / event summary (optional, for transitions)",
+    },
+  },
+  execute: async (args, ctx) => {
+    const op = String(args.operation ?? "")
+    const sid = String(args.session_id ?? ctx.sessionID ?? "default")
+    const project = projectHash(projectDir(ctx))
+    try {
+      if (op === "create") {
+        const summary = String(args.summary ?? "").trim()
+        if (!summary) return "punchcard.create: summary is required"
+        const parentId = args.parent_id ? String(args.parent_id) : undefined
+        const body = args.body ? String(args.body) : ""
+        const tid = nextTid(project, sid, parentId)
+        const now = Date.now()
+        const item = {
+          id: tid,
+          summary,
+          status: "open",
+          parentId: parentId ?? null,
+          createdAt: now,
+          updatedAt: now,
+          body,
+        }
+        punchcardWrite(project, sid, item)
+        return `Created ${tid} (open) in project ${project} session ${sid}: ${summary}\nFile: ${punchcardItemFile(project, sid, tid)}`
+      }
+      if (op === "list") {
+        const items = punchcardList(project, sid)
+        if (items.length === 0) return `No punchcard items in project ${project} session ${sid}.`
+        const lines = items.map((it) => `${it.id} ${it.status} — ${it.summary}`)
+        return `Punchcard (${project}/${sid}, ${items.length} items):\n\n${lines.join("\n")}`
+      }
+      if (op === "get") {
+        const id = String(args.id ?? "")
+        if (!id) return "punchcard.get: id is required"
+        const it = punchcardRead(project, sid, id)
+        if (!it) return `No punchcard item ${id} in project ${project} session ${sid}.`
+        return [
+          `${it.id} (${it.status}): ${it.summary}`,
+          `Parent: ${it.parentId ?? "(root)"}`,
+          `Created: ${new Date(it.createdAt).toISOString()}`,
+          `Updated: ${new Date(it.updatedAt).toISOString()}`,
+          `File: ${it.path}`,
+          "",
+          "Body:",
+          it.body || "(empty)",
+        ].join("\n")
+      }
+      if (op === "rename") {
+        const id = String(args.id ?? "")
+        const summary = String(args.summary ?? "").trim()
+        if (!id || !summary) return "punchcard.rename: id and summary are required"
+        const it = punchcardRead(project, sid, id)
+        if (!it) return `No punchcard item ${id} in project ${project} session ${sid}.`
+        it.summary = summary
+        it.updatedAt = Date.now()
+        punchcardWrite(project, sid, it)
+        return `Renamed ${id}: "${summary}"`
+      }
+      if (["start", "block", "unblock", "done", "abandon"].includes(op)) {
+        const id = String(args.id ?? "")
+        if (!id) return `punchcard.${op}: id is required`
+        const it = punchcardRead(project, sid, id)
+        if (!it) return `No punchcard item ${id} in project ${project} session ${sid}.`
+        const rule = PUNCHCARD_TRANSITIONS[op]
+        if (rule.reverse) {
+          if (it.status !== rule.from[0]) {
+            return `punchcard.${op}: cannot abandon a ${it.status} item (only done items can be abandoned)`
+          }
+          it.status = rule.to
+        } else {
+          if (!rule.from.includes(it.status)) {
+            return `punchcard.${op}: illegal transition from ${it.status} (allowed from: ${rule.from.join(", ")})`
+          }
+          it.status = rule.to
+        }
+        it.updatedAt = Date.now()
+        punchcardWrite(project, sid, it)
+        const reason = args.reason ? String(args.reason) : undefined
+        return `${id} → ${it.status}${reason ? ` (${reason})` : ""}`
+      }
+      return `punchcard: unknown operation "${op}". Available: ${PUNCHCARD_OPS.join(", ")}.`
+    } catch (e) {
+      return `punchcard.${op || "?"} error: ${e instanceof Error ? e.message : String(e)}`
+    }
+  },
+}
+
+// === dispatcher: explicit pre-flight for subagent dispatch ===
+
+const dispatcherTool = {
+  description:
+    "Pre-flight validator for subagent dispatch. Call this BEFORE the upstream `task` tool to make your dispatch intent explicit (avoids the model hesitating on the bare `task` name). Returns validated arguments and the exact call syntax for the upstream `task` tool — the actual dispatch happens when you subsequently call `task` with those args. Use `subagent_type: \"general\"` for forge subagents (implementer / spec reviewer / code quality reviewer).",
+  args: {
+    subagent_type: {
+      type: "string",
+      description: "Subagent type to dispatch (e.g., 'general' for forge subagents).",
+    },
+    description: {
+      type: "string",
+      description: "3-5 word summary of what the subagent will do.",
+    },
+    prompt: {
+      type: "string",
+      description: "Full prompt for the subagent — must be self-contained (subagent sees nothing else).",
+    },
+    task_id: {
+      type: "string",
+      description: "Existing session id to RESUME a prior subagent (optional, only for continuation).",
+    },
+    background: {
+      type: "boolean",
+      description: "If true, subagent runs in background and returns actor_id immediately.",
+    },
+  },
+  execute: async (args, ctx) => {
+    const errors = []
+    if (!args.subagent_type || typeof args.subagent_type !== "string") {
+      errors.push("subagent_type: required string (e.g., 'general')")
+    }
+    if (!args.description || typeof args.description !== "string") {
+      errors.push("description: required string (3-5 words)")
+    } else if (args.description.length > 80) {
+      errors.push(`description: too long (${args.description.length} chars, max 80)`)
+    }
+    if (!args.prompt || typeof args.prompt !== "string") {
+      errors.push("prompt: required string (must be self-contained)")
+    } else if (args.prompt.length < 20) {
+      errors.push(`prompt: too short (${args.prompt.length} chars) — subagent needs at least scaffolding + intent`)
+    }
+    if (errors.length > 0) {
+      return `dispatcher: validation failed:\n  - ${errors.join("\n  - ")}\n\nFix and retry.`
+    }
+
+    const callLines = [
+      `  description: ${JSON.stringify(args.description)}`,
+      `  prompt: ${JSON.stringify(args.prompt).slice(0, 120)}${args.prompt.length > 120 ? "..." : ""}`,
+      `  subagent_type: ${JSON.stringify(args.subagent_type)}`,
+    ]
+    if (args.task_id) callLines.push(`  task_id: ${JSON.stringify(args.task_id)}`)
+    if (args.background) callLines.push(`  background: true`)
+
+    return [
+      "✓ dispatcher: validated. Now call the upstream `task` tool with these args:",
+      "",
+      "task(",
+      ...callLines.map((l) => `  ${l}`),
+      ")",
+      "",
+      "After `task` returns, the subagent's output is wrapped in <task> tags. Continue with your workflow (e.g., spec review per forge:subagent).",
+    ].join("\n")
+  },
+}
+
+// === forge_check: lightweight stage checkpoints ===
+
+const CHECK_OPS = ["create", "list", "get", "latest"]
+
+function checkDir(project, sid) {
+  return path.join(FORGE_ROOT, "checks", project, sid)
+}
+
+function listChecks(project, sid) {
+  const out = []
+  for (const f of (() => {
+    try {
+      return fs
+        .readdirSync(checkDir(project, sid), { withFileTypes: true })
+        .filter((d) => d.isFile() && d.name.endsWith(".md"))
+        .map((d) => d.name)
+    } catch {
+      return []
+    }
+  })()) {
+    const full = path.join(checkDir(project, sid), f)
+    const m = f.match(/^(\d+)-(.+)\.md$/)
+    if (!m) continue
+    const text = readText(full) ?? ""
+    const head = (text.split("\n")[0] ?? "").replace(/^#\s*/, "").trim()
+    out.push({ file: f, ts: Number(m[1]), stage: m[2], title: head || m[2], path: full })
+  }
+  out.sort((a, b) => b.ts - a.ts)
+  return out
+}
+
+const forgeCheckTool = {
+  description:
+    "Lightweight stage checkpoint. Snapshots a milestone in the current session (e.g., 'plan-complete', 'task-1-done'). Persists to ~/.config/opencode/forge/checks/. Use this to record progress so a resumed session can pick up where it left off — replaces the heavyweight checkpoint-writer + memory system of compose mode.",
+  args: {
+    operation: {
+      type: "string",
+      description: "create | list | get | latest",
+    },
+    session_id: {
+      type: "string",
+      description: "Session id (defaults to current session)",
+    },
+    stage: {
+      type: "string",
+      description: "Stage name (slug, e.g., 'plan-complete', 'task-1-done', 'merge-ready')",
+    },
+    summary: {
+      type: "string",
+      description: "Short title for the checkpoint (used as H1)",
+    },
+    details: {
+      type: "string",
+      description: "Optional body content (markdown supported)",
+    },
+    file: {
+      type: "string",
+      description: "Checkpoint filename (for operation=get)",
+    },
+  },
+  execute: async (args, ctx) => {
+    const op = String(args.operation ?? "")
+    const sid = String(args.session_id ?? ctx.sessionID ?? "default")
+    const project = projectHash(projectDir(ctx))
+    try {
+      if (op === "create") {
+        const stage = String(args.stage ?? "").trim()
+        if (!stage) return "forge_check.create: stage is required (e.g., 'plan-complete')"
+        if (!/^[a-z0-9][a-z0-9-]*$/.test(stage)) {
+          return `forge_check.create: stage must be kebab-case slug (got "${stage}")`
+        }
+        const summary = String(args.summary ?? stage).trim()
+        const details = String(args.details ?? "")
+        const ts = Date.now()
+        const file = path.join(checkDir(project, sid), `${ts}-${stage}.md`)
+        const content = [
+          `# ${summary}`,
+          "",
+          `- created_at: ${new Date(ts).toISOString()}`,
+          `- project: ${project}`,
+          `- session_id: ${sid}`,
+          `- stage: ${stage}`,
+          "",
+          "---",
+          "",
+          details,
+        ].join("\n")
+        writeText(file, content)
+        return `Checkpoint recorded: ${stage} (project ${project})\n  ${file}`
+      }
+      if (op === "list") {
+        const items = listChecks(project, sid)
+        if (items.length === 0) return `No checkpoints in project ${project} session ${sid}.`
+        const lines = items.map((it) => {
+          const when = new Date(it.ts).toISOString().slice(0, 16).replace("T", " ")
+          return `${when}  ${it.stage.padEnd(20)}  ${it.title}`
+        })
+        return `Checkpoints (${project}/${sid}, ${items.length} items):\n\n${lines.join("\n")}`
+      }
+      if (op === "latest") {
+        const items = listChecks(project, sid)
+        if (items.length === 0) return `No checkpoints in project ${project} session ${sid}.`
+        const it = items[0]
+        const text = readText(it.path) ?? ""
+        return `Latest checkpoint (${it.stage}, ${new Date(it.ts).toISOString()}):\n\n${text}\n\nFile: ${it.path}`
+      }
+      if (op === "get") {
+        const file = String(args.file ?? "")
+        if (!file) return "forge_check.get: file is required (e.g., '1700000000-plan-complete.md')"
+        const full = path.join(checkDir(project, sid), file)
+        const text = readText(full)
+        if (!text) return `No checkpoint file: ${full}`
+        return text + `\n\nFile: ${full}`
+      }
+      return `forge_check: unknown operation "${op}". Available: ${CHECK_OPS.join(", ")}.`
+    } catch (e) {
+      return `forge_check.${op || "?"} error: ${e instanceof Error ? e.message : String(e)}`
+    }
+  },
+}
+
+const plugin = {
+  id: "forge-plugin",
+  server: () => ({
+    tool: {
+      punchcard: punchcardTool,
+      dispatcher: dispatcherTool,
+      "forge-check": forgeCheckTool,
+    },
+  }),
+}
+
+const src_default = plugin
+export { src_default as default }

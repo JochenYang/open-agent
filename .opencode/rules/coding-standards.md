@@ -1,0 +1,87 @@
+---
+name: coding-standards
+description: Mandatory engineering standards for code quality.
+---
+
+# Coding Standards
+
+**RULE TYPE**: Mandatory engineering standards.
+
+## Core Rules
+
+1. Minimal change: modify only what is required by the goal.
+2. Readability first: clear naming, short functions, shallow nesting.
+3. Comments must explain business decisions and algorithm choices, not obvious code logic.
+4. Treat inputs and shared state as immutable.
+5. Avoid `any` unless an explicit boundary requires it.
+6. Validate all external inputs before use.
+7. Handle errors with actionable context.
+
+## Immutability Rule
+
+- Never mutate function arguments.
+- Never mutate shared state directly.
+- Local mutation is allowed only on fresh local copies with clear justification.
+
+## Error Handling Rule
+
+- Wrap failure-prone operations.
+- Preserve original error context in logs.
+- Return/throw stable, user-safe error messages.
+
+## Type & Validation Rule
+
+- Prefer strict types and explicit interfaces.
+- Add runtime validation for request payloads, env vars, and external data.
+
+## Size Guidelines
+
+- **Code files**: Function <= 50 lines. File: 200-400 lines preferred, <= 800 hard limit. Nesting depth: <= 4. Rule/config files are exempt.
+
+## Quality Gate
+
+- Naming and flow are readable; error paths are handled.
+- No hardcoded secrets; input validation is present.
+- Tests cover changed behavior; no leftover debug logs.
+
+## Testing Norms
+
+- Never mark a task complete without proof (test results, behavior delta, or log snippet).
+- Bugfix: reproduce with failing test first, apply minimal fix, then refactor.
+- Coverage baseline: >= 80% overall; high-risk modules (auth, security, business logic) target 100%.
+- Use AAA structure; behavior-driven test names.
+
+## Testing Escalation Rules
+
+Escalate before closing the task when:
+
+1. Key tests cannot run in the current environment.
+2. Regression risk exists but reproducible evidence is incomplete.
+3. Required coverage is unmet for high-risk modules.
+
+## Anti-Rationalization Pattern
+
+This pattern prevents rationalization failures where models skip verification steps.
+
+**Pre-Execution Traps — when you feel like skipping, do it instead:**
+- "The code looks right" → Execute and verify, don't just read
+- "Tests already passed" → Run them yourself, trust nothing
+- "The logic is simple" → Prove it with tests
+- "I already read the file" → Files change, re-read before editing
+- "It worked before" → Dependencies change, retest
+- "No errors in output" → Check exit codes and side effects
+
+**Decision Traps — question every assumption:**
+- "This is the right approach" → What would make this wrong?
+- "No breaking changes" → Did you verify all callers?
+- "Performance is fine" → Did you measure it?
+- "It's tested" → Is coverage >80% on changed paths?
+- "Edge cases are handled" → Did you enumerate them?
+
+**Skip-proof checklist:**
+- [ ] Did I run the code, not just read it?
+- [ ] Did I verify the test results myself?
+- [ ] Did I check for side effects, confirm exit codes?
+- [ ] Did I measure performance when it matters?
+
+Reference this when starting implementation, reviewing work, or declaring a task complete.
