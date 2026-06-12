@@ -61,8 +61,6 @@ OpenCode 原生支持会话级代理编排，核心机制如下：
 | 中军 | 中军.md | primary  | 标准 Supervisor 入口，只调度不执行     |
 | 行者 | 行者.md | primary  | 日常执行入口；显式工作流入口             |
 | 谋士 | 谋士.md | primary  | plan 模式，宏观架构决策与风险权衡      |
-| 策士 | 策士.md | subagent | 编排规划，任务拆解、风险识别、子代理分派 |
-| 探路 | 探路.md | subagent | 代码定位、调用链追踪                   |
 | 御史 | 御史.md | subagent | 代码审查（正确性/安全/性能/可维护性）   |
 | 明镜 | 明镜.md | subagent | Bug 复现、调试定位、根因分析、修复建议  |
 | 校验 | 校验.md | subagent | TDD 测试、回归验证                     |
