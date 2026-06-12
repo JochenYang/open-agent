@@ -2,44 +2,108 @@ import type { Plugin } from "@opencode-ai/plugin"
 import { createHash } from "crypto"
 import { tmpdir } from "os"
 import path from "path"
+import { promises as fs } from "fs"
 
 const TMP_DIR = path.join(tmpdir(), "opencode-vision")
 
-// 图片内容哈希 → 全局序号，确保同一张图不重复计数
+// Map from content hash to global image sequence number, ensuring each unique image
+// gets a stable seq across the session
 const imageRegistry = new Map<string, number>()
 let nextImageSeq = 1
 
-// 原生支持多模态（可直接识别图片）的模型匹配规则
-// 匹配的模型 → 跳过 transform，让 OpenCode 原生管道处理图片
-// 不匹配的模型 → 走 vision 工具 fallback
-const NATIVE_VISION = /gpt-|o[0-9]|claude-|gemini-|qwen3\.(5|6)|qwen-vl|qwen2-5-vl|qwen3-vl|qwen-omni|qvq-max|kimi-k2\.(5|6)|minimax-m3|minimax-vl|glm-[0-9.]+v|mimo-v2-omni|mimo-v2\.5$|yi-vl|deepseek-vl2/i
+// LRU eviction: when this many images are stored, oldest image* dir gets deleted
+// Default 200 images (~200MB cap); adjustable via VISION_MAX_IMAGES env var
+const MAX_IMAGES = Number(process.env["VISION_MAX_IMAGES"] || 200)
+const LRU_QUEUE: string[] = []  // image{N} dir paths in access order
+const LRU_SET = new Set<string>()  // fast membership check
+
+function touchLRU(seqDir: string) {
+  LRU_QUEUE.push(seqDir)
+  LRU_SET.add(seqDir)
+  // Evict oldest entries when over the cap (FIFO)
+  while (LRU_QUEUE.length > MAX_IMAGES) {
+    const oldest = LRU_QUEUE.shift()
+    if (!oldest) break
+    LRU_SET.delete(oldest)
+    // Asynchronously delete the oldest image dir
+    fs.rm(oldest, { recursive: true, force: true }).catch(() => {})
+  }
+}
+
+// Regex matching models with native multimodal (image) support.
+// Matched models → skip the transform, let OpenCode's native pipeline handle the image.
+// Non-matched models → fall through to the vision tool.
+//
+// Coverage:
+//   Foreign  : GPT-4o+, o1/o3/o4+, Claude 3/4/5, Gemini, Pixtral, Llama 3.2 Vision, Nova Vision
+//   Alibaba  : Qwen VL/Omni series, Qwen 3.5/3.6, QVQ-Max
+//   Kimi     : kimi-k2.5, kimi-k2.6
+//   MiniMax  : MiniMax-M3, MiniMax-VL-*
+//   GLM      : glm-*v (with "v" suffix = vision variant)
+//   Xiaomi   : mimo-v2-omni, mimo-v2.5
+//   Yi       : yi-vl-*
+//   DeepSeek : deepseek-vl2 (SiliconFlow hosted)
+//   Doubao   : doubao-*-vision
+//   InternVL : internvl*
+//   Seed     : seed-*-vision
+//
+// Note on Qwen 3.5/3.6: NOT followed by `-max`/`-max-preview` (which are text-only).
+//   Match: qwen3.5-plus, qwen3.6-flash, qwen3.6-plus, qwen3.5-flash
+//   Skip : qwen3.6-max-preview (text), qwen3.7-max (text), qwen3-max (text)
+// Foreign: GPT/o[0-9]/Claude/Gemini/Pixtral/Llama 3.2 Vision/Nova Vision
+// Qwen VL family: matches qwen-vl-*, qwen2-vl-*, qwen2.5-vl-*, qwen3-vl-*, qwen-omni-*, qvq-max
+//   The "qwen-vl" branch handles the no-version-number case; the numbered branch
+//   matches qwen2/2.5/3 with optional separator variants (-/_/.)
+// Qwen 3.5/3.6 multimodal series: qwen3.5-plus, qwen3.5-flash, qwen3.6-plus, qwen3.6-flash
+//   Negative lookahead (?!-max) excludes text-only qwen3.6-max-preview / qwen3.7-max / qwen3-max
+const NATIVE_VISION = /gpt-|o[0-9]|claude-|gemini-|pixtral|llama-3\.2.*vision|nova-.*vision|qwen3\.[56](?!-max)|qwen(?:-vl|2[._-]?5?[._-]?vl)|qwen2-vl|qwen3-vl|qwen-omni|qvq-max|kimi-k2\.(5|6)|minimax-m3|minimax-vl|glm-[0-9.]+v|mimo-v2-omni|mimo-v2\.5$|yi-vl|deepseek-vl2|doubao-.*vision|seed-.*vision|internvl/i
 
 /**
- * 在消息发送给模型前一刻，检测用户消息中的图片附件：
- * 1. 如果当前模型支持原生多模态 → 跳过，让 OpenCode 原生处理
- * 2. 否则：
- *    a. 保存图片到临时目录
- *    b. 用简短占位替换原始图片部分（消除 unsupportedParts 的 ERROR 噪音）
- *    c. 注入路径提示（新 push 的 part，不持久化，UI 不可见）
+ * Hook runs just before messages are sent to the model. Detects image attachments in
+ * user messages and either:
+ *  1. Skips the transform if the current model supports native multimodal
+ *  2. Skips the transform during compaction (summary messages are already text)
+ *  3. Otherwise:
+ *     a. Saves images to a temp dir
+ *     b. Replaces file parts with short text placeholders (avoids unsupportedParts ERROR)
+ *     c. Pushes a path-hint text part for the model to call the vision tool
+ *     d. Cleans up hints from a previous transform run (prevents accumulation)
+ *     e. Tracks usage for LRU eviction
  *
- * 按图片在会话中的出现顺序分配全局序号：
- *   第 1 张图 → image1/xxx.png
- *   第 2 张图 → image2/yyy.png
- *   第 3 张图 → image3/zzz.png
+ * Images are assigned global sequence numbers in paste order:
+ *   1st image → image1/xxx.png
+ *   2nd image → image2/yyy.png
+ *   3rd image → image3/zzz.png
  *
- * 通过图片内容哈希去重，不受 transform 重复执行或消息状态影响。
+ * Deduplication uses MD5 of the full base64 (not just the first 1024 chars) to avoid
+ * hash collisions for visually similar images.
  */
 export default (async () => {
-  await Bun.write(path.join(TMP_DIR, ".check"), "").catch(() => {})
+  // Ensure the temp root dir exists at plugin startup
+  await fs.mkdir(TMP_DIR, { recursive: true }).catch(() => {})
 
   return {
     "experimental.chat.messages.transform": async (_input, output) => {
       for (const msg of output.messages) {
         if (msg.info.role !== "user") continue
 
-        // 检测当前模型是否支持原生多模态
+        // P0-2: Skip compaction messages (they are already summarized text)
+        // OpenCode's MessageInfo exposes a `summary` field for compacted msgs
+        const info = msg.info as unknown as { role: string; summary?: boolean }
+        if (info.summary) continue
+
+        // Check whether the current model supports native vision
         const modelID = (msg.info.model?.modelID || "").toLowerCase()
         if (NATIVE_VISION.test(modelID)) continue
+
+        // Clean up any hints injected by a previous transform run (prevents accumulation)
+        for (let i = msg.parts.length - 1; i >= 0; i--) {
+          const p = msg.parts[i] as unknown as { type?: string; text?: string }
+          if (p.type === "text" && typeof p.text === "string" &&
+              (p.text.startsWith("[Image #") || p.text.startsWith("[Images auto-saved to:"))) {
+            msg.parts.splice(i, 1)
+          }
+        }
 
         const saved: { index: number; name: string; seq: number }[] = []
 
@@ -52,8 +116,9 @@ export default (async () => {
           const base64 = part.url.slice(colon + ";base64,".length)
           if (!base64) continue
 
-          // 用 base64 前 32 字符的 MD5 作为内容指纹去重
-          const hash = createHash("md5").update(base64.slice(0, 1024)).digest("hex").slice(0, 8)
+          // P1-1: MD5 over the FULL base64 (not just first 1024 chars) to avoid collisions
+          // for visually similar images. First 8 hex chars used as a short filename id.
+          const hash = createHash("md5").update(base64).digest("hex").slice(0, 8)
 
           let seq = imageRegistry.get(hash)
           if (!seq) {
@@ -65,34 +130,40 @@ export default (async () => {
           const name = `${hash}.${ext}`
 
           const seqDir = path.join(TMP_DIR, `image${seq}`)
-          await Bun.write(path.join(seqDir, ".check"), "").catch(() => {})
           const filePath = path.join(seqDir, name)
-          // 如果已存在（同 hash 的图已存过）则跳过写盘
+          // P1-3: write failures degrade to a skip (don't throw, don't break the turn)
           if (!(await Bun.file(filePath).exists())) {
-            await Bun.write(filePath, Buffer.from(base64, "base64"))
+            try {
+              await Bun.write(filePath, Buffer.from(base64, "base64"))
+            } catch (err) {
+              console.error(`[vision-helper] Failed to write ${filePath}:`, err)
+              continue
+            }
           }
+
+          // P0-5: record access for LRU eviction
+          touchLRU(seqDir)
 
           saved.push({ index: i, name, seq })
         }
 
         if (saved.length === 0) continue
 
-        // 用简短占位替换原始图片 part，防止 unsupportedParts 产生噪音 ERROR
+        // Replace image parts with short placeholders to avoid unsupportedParts ERROR
         for (const { index, name, seq } of saved.toReversed()) {
           msg.parts.splice(index, 1, {
             type: "text",
             text: `[vision: image${seq}/${name}]`,
-          } as never)
+          } as { type: "text"; text: string })
         }
 
-        // 构造路径提示（新 push 的 part，不持久化，UI 不可见）
+        // Build path hint(s) for the model to use the vision tool
         const hints = saved.length === 1
           ? `[Image #${saved[0].seq} auto-saved to ${path.join(TMP_DIR, `image${saved[0].seq}`, saved[0].name)} — use the vision tool to read it]`
           : `[Images auto-saved to:\n${saved.map((s) => `  ${path.join(TMP_DIR, `image${s.seq}`, s.name)}`).join("\n")}\n— use the vision tool with paths=[...] to read them all at once]`
 
-        // push 新的 part 而非修改现有 part，避免影响 UI 渲染
-        ;(msg.parts as unknown as Record<string, unknown>[]).push({
-          type: "text" as const,
+        msg.parts.push({
+          type: "text",
           text: hints,
         })
       }

@@ -4,17 +4,35 @@ import { tmpdir } from "os"
 import path from "path"
 
 const TMP_DIR = path.join(tmpdir(), "opencode-vision")
+const TMP_DIR_RESOLVED = path.resolve(TMP_DIR)
 
-// ── Helpers ──
+// 单图最大 50MB，防止恶意大文件 OOM
+const MAX_FILE_SIZE = 50 * 1024 * 1024
+
+// 合法的图片扩展名（白名单）
+const IMAGE_EXTS = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"])
 
 /**
- * Build a consistent error string for vision API failures.
- * Keeps backend-specific error formatting in one place.
+ * 路径沙箱：只允许读取 TMP_DIR 下的图片文件
+ * 防止 vision 工具被 prompt injection 诱导读取 /etc/passwd 等敏感文件
+ * 并 base64 发给外部 VISION_API_URL 服务端造成数据外泄
  */
-function errorMsg(source: "openai" | "minimax", status: number | null, message: string): string {
-  return status !== null
-    ? `${source} Vision API error (${status}): ${message}`
-    : `${source} Vision API error: ${message}`
+function sandboxPath(p: string): string | null {
+  // 1. 解析并规范化路径
+  const resolved = path.resolve(p)
+
+  // 2. 必须位于 TMP_DIR 之下（防止任意路径读取）
+  if (!resolved.startsWith(TMP_DIR_RESOLVED + path.sep) && resolved !== TMP_DIR_RESOLVED) {
+    return null
+  }
+
+  // 3. 必须有合法图片扩展名
+  const ext = path.extname(resolved).toLowerCase()
+  if (!IMAGE_EXTS.has(ext)) {
+    return null
+  }
+
+  return resolved
 }
 
 export default tool({
@@ -27,7 +45,7 @@ For multiple images, use the "paths" parameter.
 Requires VISION_API_KEY and VISION_API_URL.
 VISION_MODEL is required for OpenAI-compatible backends.
 MiniMax is auto-detected — set VISION_API_URL to your MiniMax base URL and VISION_MODEL is optional.
-Override with VISION_API_TYPE=openai|minimax, or pass source=openai|minimax to bypass auto-detect.`,
+Override with VISION_API_TYPE=openai|minimax.`,
   args: {
     paths: tool.schema
       .array(tool.schema.string())
@@ -41,10 +59,6 @@ Override with VISION_API_TYPE=openai|minimax, or pass source=openai|minimax to b
       .string()
       .describe("Optional specific question about the image(s)")
       .optional(),
-    source: tool.schema
-      .enum(["auto", "openai", "minimax"])
-      .describe("Force a specific backend (default: auto-detect from VISION_API_URL)")
-      .default("auto"),
   },
   async execute(args) {
     const allPaths: string[] = []
@@ -53,33 +67,47 @@ Override with VISION_API_TYPE=openai|minimax, or pass source=openai|minimax to b
     } else if (args.path) {
       allPaths.push(args.path)
     }
-    if (allPaths.length === 0) return "Error: no image path provided"
+    // 过滤空字符串 / null / 非字符串
+    const validInputPaths = allPaths.filter((p): p is string => typeof p === "string" && p.length > 0)
+    if (validInputPaths.length === 0) return "Error: no image path provided"
 
     // Resolve each path (try absolute, then TMP_DIR/{path}, then TMP_DIR/{basename})
     const resolved: string[] = []
-    for (const p of allPaths) {
-      let file = Bun.file(p)
-      if (await file.exists()) {
-        resolved.push(p)
-        continue
+    const rejected: string[] = []
+    for (const p of validInputPaths) {
+      // 三层路径尝试，每层都过沙箱
+      const candidates = [
+        p,                                       // 1. 绝对路径直传
+        path.join(TMP_DIR, p),                   // 2. TMP_DIR/{path}
+        path.join(TMP_DIR, path.basename(p)),    // 3. TMP_DIR/{basename} (向后兼容)
+      ]
+      let found: string | null = null
+      for (const candidate of candidates) {
+        const safe = sandboxPath(candidate)
+        if (!safe) continue
+        const file = Bun.file(safe)
+        if (!(await file.exists())) continue
+        // 大小限制
+        if (file.size > MAX_FILE_SIZE) {
+          rejected.push(`${safe} (too large: ${(file.size / 1024 / 1024).toFixed(1)}MB > ${MAX_FILE_SIZE / 1024 / 1024}MB)`)
+          found = null
+          break
+        }
+        found = safe
+        break
       }
-      // Try TMP_DIR/image{N}/filename (from sequential paste prefix)
-      const withPrefix = path.join(TMP_DIR, p)
-      file = Bun.file(withPrefix)
-      if (await file.exists()) {
-        resolved.push(withPrefix)
-        continue
-      }
-      // Try TMP_DIR/filename (backward compat)
-      const fallback = path.join(TMP_DIR, path.basename(p))
-      file = Bun.file(fallback)
-      if (await file.exists()) {
-        resolved.push(fallback)
+      if (found) {
+        resolved.push(found)
+      } else {
+        rejected.push(p)
       }
     }
 
     if (resolved.length === 0) {
-      return `Error: none of the specified images were found (looked in: ${allPaths.join(", ")})`
+      const reasons = rejected.length > 0
+        ? `\nRejected paths (not in TMP_DIR, not an image, or too large):\n  ${rejected.join("\n  ")}`
+        : ""
+      return `Error: none of the specified images could be read.${reasons}\nTip: paths must point to images in ${TMP_DIR_RESOLVED} (e.g. ${TMP_DIR_RESOLVED}/image1/abc123.png).`
     }
 
     const apiKey = process.env["VISION_API_KEY"]
@@ -87,8 +115,8 @@ Override with VISION_API_TYPE=openai|minimax, or pass source=openai|minimax to b
     if (!apiKey) return "Error: VISION_API_KEY not set"
     if (!baseUrl) return "Error: VISION_API_URL not set"
 
-    // Determine API type: CLI override > env override > auto-detect from URL
-    const apiType = args.source !== "auto" ? args.source : (process.env["VISION_API_TYPE"] || "").toLowerCase()
+    // Determine API type: explicit override or auto-detect from URL
+    const apiType = (process.env["VISION_API_TYPE"] || "").toLowerCase()
     const isMiniMax = apiType === "minimax" || (!apiType && /minimax/i.test(baseUrl))
 
     if (isMiniMax) {
@@ -100,9 +128,23 @@ Override with VISION_API_TYPE=openai|minimax, or pass source=openai|minimax to b
 
 // ── OpenAI-compatible backend ──
 
+// P1-4: 60s default fetch timeout to prevent API hangs from freezing OpenCode
+const FETCH_TIMEOUT_MS = Number(process.env["VISION_FETCH_TIMEOUT_MS"] || 60_000)
+
+/**
+ * Truncate long error response bodies so we don't dump a multi-MB HTML error page
+ * into the LLM context.
+ */
+function truncate(s: string, max = 1024): string {
+  return s.length > max ? s.slice(0, max) + `... [truncated, ${s.length} bytes total]` : s
+}
+
 async function callOpenAI(apiKey: string, baseUrl: string, resolved: string[], question?: string) {
   const model = process.env["VISION_MODEL"]
   if (!model) return "Error: VISION_MODEL not set (required for OpenAI-compatible backends)"
+
+  // P2-2: allow VISION_MAX_TOKENS override; default 4096
+  const maxTokens = Number(process.env["VISION_MAX_TOKENS"] || 4096)
 
   const apiUrl = `${baseUrl.replace(/\/+$/, "")}/chat/completions`
 
@@ -126,19 +168,33 @@ async function callOpenAI(apiKey: string, baseUrl: string, resolved: string[], q
     content.push({ type: "image_url", image_url: { url: `data:${mime};base64,${base64}` } })
   }
 
-  const response = await fetch(apiUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-    body: JSON.stringify({
-      model,
-      messages: [{ role: "user", content }],
-      max_tokens: 4096,
-    }),
-  })
+  // P1-4: AbortController-based timeout
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+  let response: Response
+  try {
+    response = await fetch(apiUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model,
+        messages: [{ role: "user", content }],
+        max_tokens: maxTokens,
+      }),
+      signal: controller.signal,
+    })
+  } catch (err) {
+    if ((err as Error).name === "AbortError") {
+      return `Vision API error: request timed out after ${FETCH_TIMEOUT_MS}ms`
+    }
+    throw err
+  } finally {
+    clearTimeout(timer)
+  }
 
   if (!response.ok) {
-    const text = await response.text()
-    return errorMsg("openai", response.status, text)
+    const text = truncate(await response.text())
+    return `Vision API error (${response.status}): ${text}`
   }
 
   const data = (await response.json()) as { choices: { message: { content: string } }[] }
@@ -170,22 +226,36 @@ async function callMiniMax(apiKey: string, baseUrl: string, resolved: string[], 
 
     const prompt = question || "Please describe this image in detail"
 
-    const response = await fetch(apiUrl, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
-      body: JSON.stringify({ prompt, image_url: imageUrl }),
-    })
+    // P1-4: AbortController-based timeout (per-image)
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS)
+    let response: Response
+    try {
+      response = await fetch(apiUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+        body: JSON.stringify({ prompt, image_url: imageUrl }),
+        signal: controller.signal,
+      })
+    } catch (err) {
+      if ((err as Error).name === "AbortError") {
+        return `MiniMax Vision API error: request timed out after ${FETCH_TIMEOUT_MS}ms`
+      }
+      throw err
+    } finally {
+      clearTimeout(timer)
+    }
 
     if (!response.ok) {
-      const text = await response.text()
-      return errorMsg("minimax", response.status, text)
+      const text = truncate(await response.text())
+      return `MiniMax Vision API error (${response.status}): ${text}`
     }
 
     const data = (await response.json()) as MiniMaxVlmResponse
 
     // MiniMax wraps errors in base_resp even on HTTP 200
     if (data.base_resp?.status_code && data.base_resp.status_code !== 0) {
-      return errorMsg("minimax", null, data.base_resp.status_msg || `status_code ${data.base_resp.status_code}`)
+      return `MiniMax Vision API error: ${data.base_resp.status_msg || `status_code ${data.base_resp.status_code}`}`
     }
 
     descriptions.push(data.content || "No description returned.")
