@@ -2,32 +2,47 @@
 
 # Open Agent
 
-### 为 OpenCode 深度定制的多代理工作流引擎
+### 基于 OpenCode 的 Forge 多代理工程系统
 
-[![License](https://img.shields.io/github/license/JochenYang/open-agent?style=flat-square&color=2563EB)](https://github.com/JochenYang/open-agent/blob/main/LICENSE)
-[![Stars](https://img.shields.io/github/stars/JochenYang/open-agent?style=flat-square&color=8B5CF6)](https://github.com/JochenYang/open-agent/stargazers)
-[![Compatibility](https://img.shields.io/badge/OpenCode-Compatible-EC4899?style=flat-square)](https://github.com/anomalyco/opencode)
+<p>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/JochenYang/open-agent?style=flat-square&color=2563EB&labelColor=1E293B"></a>
+  <a href="https://github.com/JochenYang/open-agent/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/JochenYang/open-agent?style=flat-square&color=F59E0B&labelColor=1E293B&logo=github"></a>
+  <a href="https://github.com/JochenYang/open-agent/commits/main"><img alt="Last Commit" src="https://img.shields.io/github/last-commit/JochenYang/open-agent?style=flat-square&color=10B981&labelColor=1E293B&logo=git&logoColor=white"></a>
+  <a href="https://github.com/anomalyco/opencode"><img alt="OpenCode" src="https://img.shields.io/badge/OpenCode-Compatible-EC4899?style=flat-square&labelColor=1E293B"></a>
+  <a href=".opencode/agents/Forge.md"><img alt="Forge" src="https://img.shields.io/badge/Forge-Powered-B91C1C?style=flat-square&labelColor=1E293B"></a>
+</p>
 
-`多代理编排` • `Plan-Execute-Review` • `审查门机制` • `自适应修复回路`
+<p>
+  <img alt="Forge Skills" src="https://img.shields.io/badge/Forge_Skills-15-7C3AED?style=flat-square&labelColor=1E293B">
+  <img alt="Subagents" src="https://img.shields.io/badge/Subagents-8-0EA5E9?style=flat-square&labelColor=1E293B">
+  <img alt="Custom Tools" src="https://img.shields.io/badge/Custom_Tools-5-F97316?style=flat-square&labelColor=1E293B">
+  <img alt="Plugins" src="https://img.shields.io/badge/Plugins-4-DC2626?style=flat-square&labelColor=1E293B">
+  <img alt="MCP Servers" src="https://img.shields.io/badge/MCP_Servers-4-06B6D4?style=flat-square&labelColor=1E293B">
+  <img alt="Rules" src="https://img.shields.io/badge/Rules-6-CA8A04?style=flat-square&labelColor=1E293B">
+</p>
 
-[特性说明](#特性) • [架构拓扑](#架构总览) • [代理一览](#代理一览) • [预置工作流](#工作流) • [快速安装](#快速开始)
+`Skill 驱动编排` · `专长 Subagent` · `规格化交付` · `证据优先`
+
+[特性](#特性) · [架构](#架构总览) · [Forge Skills](#forge-skills) · [Subagent](#subagent-一览) · [工具与插件](#内置工具与插件) · [快速开始](#快速开始)
 
 </div>
 
 ---
 
-**Open Agent** 是一套专为 OpenCode 打造的高级多代理协同开发系统。它通过引入 **中军**（团队总指挥）、**行者**（日常执行）、**谋士**（宏观决策）三主控核心，并协同 **10 个专长领域子代理**，将传统的单 Agent 编程模式升级为真正意义上的 AI 全栈软件工程团队，实现 Plan → Execute → Review 的全闭环自主协作。
+**Open Agent** 是一套围绕 OpenCode 构建的工程化多代理体系。核心由 **Forge** 主代理统一编排 **15 个 Forge Skill** 完成 brainstorm → plan → execute → verify → review → merge 全流程，并按需调度 **8 个中文命名的专长 Subagent** 处理审查、调试、测试、数据库、性能、部署等领域工作；同时附带 **5 个自定义 TS 工具**、**4 个 Plugin**、**4 个 MCP 服务**与 **6 套规则文档**，让一台 OpenCode 即可拥有完整的"产品 → 工程 → 验证 → 交付"流水线。
 
 ---
 
 ## 特性
 
-- **3 主代理 + 10 子代理** — 从规划到部署，每个阶段都有专长代理负责
-- **9 种预置工作流** — feature / bugfix / refactor / TDD / 安全 / 数据库 / 性能 / 部署，一条命令启动
-- **审查门机制** — 每个工作流以代码审查收尾，不通过则自动进入修复循环（上限 3 次）
-- **权限隔离** — 只读代理无法修改代码，可写代理受 scope 约束，危险操作需确认
-- **结构化交接** — 代理间通过 HANDOFF 协议传递上下文，信息不丢失
-- **清晰入口分工** — `@中军` 负责团队编排，`@行者` 负责日常执行，`/orchestrate` 提供显式工作流入口
+- **Skill 驱动编排** — Forge agent 不再硬编码工作流，而是按任务特征动态加载 15 个 Skill；新增工作流 = 加一份 SKILL.md
+- **专长子代理可调** — 御史 / 刺史 / 校验 / 明镜 / 工匠 / 匠作 / 斥候 / 都尉 八个职责清晰的 subagent，覆盖审查、调试、TDD、实现、数据库、性能、部署
+- **规格优先与两阶段评审** — 复杂任务先经 brainstorm 形成 spec，subagent 工作完毕后由 spec-reviewer + code-quality-reviewer 双轨复核
+- **证据优先与防侥幸** — `rules/evidence-first.md` 引入 L1–L4 证据分级，所有非显然结论强制标注证据等级与验证路径
+- **自带工程工具** — 内置 `dep-graph` / `dead-code` / `schema-diff` / `git-conventions` / `vision` 五大跨语言静态分析与协作工具
+- **任务卡与里程碑** — `punchcard` 跟踪每条 T1/T1.1 任务，`forge_check` 记录 plan-complete / merge-ready 等阶段检查点
+- **Mission 自治模式** — 通过 `opencode-mission` 插件可下达带预算的长任务，达成条件后由独立 verify 子代理裁定完成
+- **MCP 即插即用** — 默认接入 context7（库文档）、exa（联网检索）、interleaved-thinking（结构化推理）、time-mcp（时间换算）
 
 ---
 
@@ -37,121 +52,142 @@
 graph TB
     User(["用户"])
 
-    subgraph Primary["主代理（手动切换）"]
-        ZJ["中军<br/>团队总指挥<br/>只调度不执行"]
-        XZ["行者<br/>日常执行<br/>显式工作流入口"]
-        MS["谋士<br/>只读规划<br/>架构决策"]
+    subgraph Primary["主代理"]
+        FG["Forge<br/>spec-driven 编排器<br/>仅调度 skill / subagent"]
+        BD["build / plan / general<br/>OpenCode 内置主代理"]
     end
 
-    subgraph Planning["规划层"]
-        CSS["策士<br/>任务拆解"]
-        TL["探路<br/>代码定位"]
+    subgraph Skills["Forge Skills (15)"]
+        direction LR
+        S1["brainstorm · ask · plan"]
+        S2["subagent · execute · tdd"]
+        S3["verify · review · debug"]
+        S4["feedback · parallel · worktree"]
+        S5["merge · report · new-skill"]
     end
 
-    subgraph Execution["执行层"]
-        GJ["工匠<br/>通用实现"]
+    subgraph Subagents["专长 Subagent (8)"]
+        direction LR
+        YS["御史<br/>代码审查"]
+        CS["刺史<br/>安全审查"]
         MJ["明镜<br/>调试定位"]
         JY["校验<br/>TDD 测试"]
+        GJ["工匠<br/>通用实现"]
         JZ["匠作<br/>数据库迁移"]
         XH["斥候<br/>性能分析"]
         DW["都尉<br/>部署运维"]
     end
 
-    subgraph Review["审查层"]
-        YSR["御史<br/>代码审查"]
-        CSR["刺史<br/>安全审查"]
+    subgraph Infra["工具 / 插件 / MCP / Rules"]
+        TL["Tools<br/>dep-graph · dead-code<br/>schema-diff · git-conventions · vision"]
+        PL["Plugins<br/>forge · notification<br/>mission · md-table"]
+        MC["MCP<br/>context7 · exa<br/>interleaved-thinking · time-mcp"]
+        RL["Rules<br/>character · coding-standards<br/>product-workflow · security<br/>context-compression · evidence-first"]
     end
 
-    User --> ZJ & XZ & MS
+    User --> FG & BD
+    FG -->|skill tool| Skills
+    FG -->|task + dispatcher| Subagents
+    Skills -.->|工作流编排| Subagents
 
-    ZJ --> CSS & TL & GJ & MJ & JY & YSR & CSR & JZ & XH & DW
-    XZ --> CSS & TL & GJ & MJ & JY & YSR & CSR & JZ & XH & DW
-    MS -.->|只读| TL & YSR & CSR
+    FG --- Infra
 
-    YSR -->|NEEDS WORK| GJ
-    YSR -->|PASS| User
-
-    style ZJ fill:#7C3AED,color:#fff
-    style XZ fill:#EC4899,color:#fff
-    style MS fill:#059669,color:#fff
-    style CSS fill:#10B981,color:#fff
-    style TL fill:#6366F1,color:#fff
-    style GJ fill:#0EA5E9,color:#fff
+    style FG fill:#B91C1C,color:#fff
+    style BD fill:#475569,color:#fff
+    style YS fill:#7C3AED,color:#fff
+    style CS fill:#DC2626,color:#fff
     style MJ fill:#F97316,color:#fff
     style JY fill:#EF4444,color:#fff
+    style GJ fill:#0EA5E9,color:#fff
     style JZ fill:#0891B2,color:#fff
     style XH fill:#CA8A04,color:#fff
     style DW fill:#2563EB,color:#fff
-    style YSR fill:#8B5CF6,color:#fff
-    style CSR fill:#DC2626,color:#fff
 ```
 
 ---
 
-## 代理一览
+## Forge Skills
 
-### 主代理
+15 个 SKILL.md 散布在 `.opencode/forge-skills/`，由 Forge agent 用 `skill` 工具按需加载。Skill 自带"何时该用 / 何时不该用 / 检查清单 / 反例"四段式说明。
 
-用户通过 `Tab` 键在主代理间切换（需配置 `tui.json`）。
-
-| 代理 | 颜色 | 模式 | 读写 | 职责 |
-|------|------|------|------|------|
-| **中军** | 紫 | Supervisor | 只读 / 无 bash | 团队总指挥，统筹 Plan-Execute-Review 闭环，只调度不执行 |
-| **行者** | 粉 | Build | 可写 | 日常执行入口，普通任务直接完成，复杂团队流转交给中军或 /orchestrate |
-| **谋士** | 绿 | Plan | 只读 / 可提问 | 宏观架构决策与风险权衡，通过 question 工具澄清需求后产出可执行计划 |
-
-### 子代理
-
-由主代理通过 `task` 工具调度，不需要用户手动调用。
-
-| 代理 | 颜色 | 读写 | 专长 | 调用场景 |
-|------|------|------|------|----------|
-| **策士** | 翠 | 只读 | 任务拆解与子代理分派 | 复杂任务规划 |
-| **探路** | 靛 | 只读 | 代码定位、调用链追踪 | 找文件、理解代码 |
-| **御史** | 堇 | 只读 | 正确性 / 性能 / 可维护性审查 | 所有工作流的最终审查门 |
-| **刺史** | 赤 | 只读 | 安全专项审查（OWASP Top 10） | 涉及认证 / 支付 / PII |
-| **明镜** | 橙 | 只读 | Bug 复现、调试定位、根因分析、修复建议 | Bug 复现与定位 |
-| **校验** | 红 | 可写 | TDD 测试、回归验证 | 补测试、验证修复 |
-| **工匠** | 蓝 | 可写 | 边界明确的小块实现 | 功能开发、重构 |
-| **匠作** | 青 | 可写 | Schema / 索引 / 迁移 / 回滚 | 数据库变更 |
-| **斥候** | 黄 | 只读 | 性能瓶颈定位、指标分析、优化方案 | 性能审计 |
-| **都尉** | 蓝 | 可写 | CI/CD / Docker / K8s / 监控 | 部署运维 |
+| 阶段 | Skill | 作用 |
+|------|-------|------|
+| 探索 | `brainstorm` | 任何需要创意/方案的工作前先跑，输出可签字的 spec |
+| 探索 | `ask` | 决策、澄清、审批的统一入口；无人值守时自动决策 |
+| 规划 | `plan` | 把 spec 拆成多步任务，写成可执行 plan |
+| 执行 | `subagent` | 通过 `dispatcher` + `task` 派发独立 subagent，强制两阶段评审 |
+| 执行 | `execute` | 在新 session 中执行已写好的 plan，带 review checkpoint |
+| 执行 | `tdd` | 强制 RED-GREEN-REFACTOR-VERIFY，禁止跳测试 |
+| 执行 | `parallel` | 2+ 个互不依赖任务的并行调度模板 |
+| 验证 | `verify` | 声称"完成 / 通过 / 修好"前必须跑的证据采集 |
+| 验证 | `review` | 主干完成或合并前的综合 review |
+| 验证 | `debug` | bug / 测试失败 / 异常行为时优先调用 |
+| 协作 | `feedback` | 收到 code review 反馈时的核实与回应流程 |
+| 协作 | `worktree` | 隔离工作区，避免污染当前分支 |
+| 收尾 | `merge` | 实现完成、测试通过后选择合并 / PR / 清理 |
+| 收尾 | `report` | 多次 spec 迭代后合并出最终态报告并沉淀 lesson |
+| 元能力 | `new-skill` | 新建 / 修改 skill，含 subagent 验证流程 |
 
 ---
 
-## 工作流
+## Subagent 一览
 
-通过 `/orchestrate` 命令启动预置工作流，每个工作流由代理链 -> 审查门 -> 修复循环组成。
+由 Forge 通过 `task` 工具调度，不需要用户手动召唤。命名沿用古制以利记忆。
 
-| 工作流 | 命令 | 代理链 | 审批门 |
-|--------|------|--------|--------|
-| **功能开发** | `/orchestrate feature` | 策士 -> 工匠 -> 校验 -> 御史 | 策士之后 |
-| **TDD 开发** | `/orchestrate feature-tdd` | 策士 -> 校验 -> 御史 | 策士之后 |
-| **Bug 修复** | `/orchestrate bugfix` | 明镜 -> 校验 -> 御史 | — |
-| **重构** | `/orchestrate refactor` | 策士 -> 工匠 -> 御史 | 策士之后 |
-| **UI 设计** | `/orchestrate ui-design` | 策士 -> 工匠 -> 御史 | 策士之后 |
-| **安全功能** | `/orchestrate secure-feature` | 策士 -> 工匠 -> [刺史 ‖ 御史] | 策士之后 |
-| **数据库功能** | `/orchestrate db-feature` | 策士 -> 匠作 -> 工匠 -> 御史 | 策士之后 |
-| **性能审计** | `/orchestrate performance-audit` | 明镜 -> 斥候 -> 工匠 -> 御史 | — |
-| **部署** | `/orchestrate deploy` | 策士 -> 都尉 -> 御史 | 策士之后 |
+| Subagent | 色相 | 读写 | 专长 | 典型调用 |
+|----------|------|------|------|----------|
+| **御史** | 堇 | 只读 | 代码审查（正确性 / 性能 / 并发 / 边界 / 可维护性 / 测试缺口） | 合并前质量门 |
+| **刺史** | 赤 | 只读 | 安全专项（认证 / 授权 / 密钥 / PII / 支付 / 注入 / 访问控制） | 涉及 auth / 支付 / PII |
+| **明镜** | 橙 | 只读 | Bug 复现、根因定位、状态分叉追踪、最小修复建议 | 排查报错、复现 |
+| **校验** | 红 | 可写 | TDD、补测试、运行验证命令、修复到通过 | 写测试、回归验证 |
+| **工匠** | 蓝 | 可写 | 范围清晰的通用代码实现、重构、修复执行 | 普通开发任务 |
+| **匠作** | 青 | 可写 | schema、索引、迁移脚本、回填、数据完整性、回滚 | 数据库变更 |
+| **斥候** | 黄 | 只读 | 慢查询、N+1、CPU/内存热点、CWV、缓存与复杂度 | 性能审计 |
+| **都尉** | 蓝 | 可写 | CI/CD、Docker、K8s、Terraform、监控、告警、回滚 | 部署与基础设施 |
 
-还可以用 `custom` 模式自定义代理链：
+---
 
-```
-/orchestrate custom "策士,工匠,刺史,御史" "实现用户认证模块"
-```
+## 内置工具与插件
 
-### 审查门与修复循环
+### 自定义工具（`.opencode/tools/`）
 
-```
-代理链执行 -> 御史审查 -> PASS? ─── 是 -> 交付
-                          │
-                          否
-                          ↓
-                  修复负责人修复 -> 御史重审 -> ... (上限 3 次)
-                                              │
-                                         3 次仍未过 -> BLOCKED
-```
+| 工具 | 作用 | 多语言支持 |
+|------|------|-----------|
+| **`dep-graph`** | 模块依赖图、循环依赖检测、耦合热点、架构分层校验 | TS/JS · Python · Go · C# · Rust |
+| **`dead-code`** | 跨语言无用导出检测（无被依赖模块） | TS/JS · Python · Go · C# · Rust · C++ |
+| **`schema-diff`** | git ref 间的类型契约语义对比，区分 BREAKING / SAFE / WARNING | TS/JS · Python · Go · C# · Rust |
+| **`git-conventions`** | 提交信息与分支命名规范校验，返回完整规约文档 | — |
+| **`vision`** | 调用外部视觉模型识别本地图像 | 兼容 OpenAI / MiniMax |
+
+### Plugin（`.opencode/plugins/`）
+
+| Plugin | 作用 |
+|--------|------|
+| **`forge-plugin.js`** | 注入 Forge 体系运行时（`punchcard` / `forge_check` / `dispatcher`） |
+| **`notification-plugin.js`** | 长任务 / mission 完成时本地通知 |
+| **`opencode-mission.js`** | Mission 自治模式：下达带 turn/token/wallclock 预算的长任务 |
+| **`vision-helper.ts`** | `vision` 工具的运行时支持 |
+| `@franlol/opencode-md-table-formatter` | npm 引入的 Markdown 表格美化器 |
+
+### MCP 服务
+
+| 服务 | 类型 | 作用 |
+|------|------|------|
+| **context7** | local | 任意库的最新文档与代码示例 |
+| **exa** | remote | 自然语言联网检索 + 网页正文提取 |
+| **interleaved-thinking** | local | 显式 thinking → tool_call → analysis 结构化推理 |
+| **time-mcp** | local | 时区换算、当前时间、周数、相对时间 |
+
+### 规则集（顶层 `instructions`）
+
+| 规则 | 摘要 |
+|------|------|
+| `character.md` | 阿亚酱的角色定位、沟通风格、陪伴要求 |
+| `coding-standards.md` | 工程基线、不可变量、错误处理、Anti-Rationalization |
+| `product-workflow.md` | Discovery → Planning → Building → Polish → Handoff 五段交付 |
+| `security.md` | 秘钥管理、事件响应、高风险升级、验证输出契约 |
+| `context-compression.md` | 压缩前三问决策树、必须保留 / 允许压缩清单 |
+| `evidence-first.md` | L1–L4 证据分级 + 5 步证据流程 + 反猜测清单 |
 
 ---
 
@@ -160,7 +196,8 @@ graph TB
 ### 前置条件
 
 - [OpenCode](https://github.com/anomalyco/opencode) 已安装并可用
-- OpenCode 全局配置目录：`~/.config/opencode`（Linux/macOS）或 `%USERPROFILE%\.config\opencode`（Windows）
+- Node.js ≥ 18（运行 npx MCP 与 plugin 依赖）
+- 全局配置目录：`~/.config/opencode/`（Linux/macOS）或 `%USERPROFILE%\.config\opencode\`（Windows）
 
 ### 安装
 
@@ -171,130 +208,122 @@ git clone https://github.com/JochenYang/open-agent.git
 cd open-agent
 ```
 
-**2. 复制配置到 OpenCode 全局目录**
+**2. 复制到 OpenCode 全局目录**
 
 Linux / macOS：
 
 ```bash
-# 复制主配置
-cp opencode.json ~/.config/opencode/opencode.json
-cp tui.json ~/.config/opencode/tui.json
+TARGET=~/.config/opencode
 
-# 复制代理定义
-mkdir -p ~/.config/opencode/agents
-cp .opencode/agents/*.md ~/.config/opencode/agents/
+cp opencode.json "$TARGET/opencode.json"
+cp tui.json      "$TARGET/tui.json"
+cp AGENTS.md     "$TARGET/AGENTS.md"
 
-# 复制工作流命令
-mkdir -p ~/.config/opencode/commands
-cp .opencode/commands/*.md ~/.config/opencode/commands/
+mkdir -p "$TARGET/agents" "$TARGET/commands" "$TARGET/forge-skills" \
+         "$TARGET/plugins" "$TARGET/rules" "$TARGET/themes" "$TARGET/tools"
+
+cp -r .opencode/agents/*        "$TARGET/agents/"
+cp -r .opencode/commands/*      "$TARGET/commands/"
+cp -r .opencode/forge-skills/*  "$TARGET/forge-skills/"
+cp -r .opencode/plugins/*       "$TARGET/plugins/"
+cp -r .opencode/rules/*         "$TARGET/rules/"
+cp -r .opencode/themes/*        "$TARGET/themes/"
+cp -r .opencode/tools/*         "$TARGET/tools/"
 ```
 
 Windows（PowerShell）：
 
 ```powershell
-# 复制主配置
-Copy-Item opencode.json "$env:USERPROFILE\.config\opencode\opencode.json"
-Copy-Item tui.json "$env:USERPROFILE\.config\opencode\tui.json"
+$Target = "$env:USERPROFILE\.config\opencode"
 
-# 复制代理定义
-New-Item -ItemType Directory -Force "$env:USERPROFILE\.config\opencode\agents"
-Copy-Item .opencode\agents\*.md "$env:USERPROFILE\.config\opencode\agents\"
+Copy-Item opencode.json "$Target\opencode.json"
+Copy-Item tui.json      "$Target\tui.json"
+Copy-Item AGENTS.md     "$Target\AGENTS.md"
 
-# 复制工作流命令
-New-Item -ItemType Directory -Force "$env:USERPROFILE\.config\opencode\commands"
-Copy-Item .opencode\commands\*.md "$env:USERPROFILE\.config\opencode\commands\"
+"agents","commands","forge-skills","plugins","rules","themes","tools" |
+  ForEach-Object { New-Item -ItemType Directory -Force "$Target\$_" | Out-Null }
+
+Copy-Item -Recurse .opencode\agents\*       "$Target\agents\"
+Copy-Item -Recurse .opencode\commands\*     "$Target\commands\"
+Copy-Item -Recurse .opencode\forge-skills\* "$Target\forge-skills\"
+Copy-Item -Recurse .opencode\plugins\*      "$Target\plugins\"
+Copy-Item -Recurse .opencode\rules\*        "$Target\rules\"
+Copy-Item -Recurse .opencode\themes\*       "$Target\themes\"
+Copy-Item -Recurse .opencode\tools\*        "$Target\tools\"
 ```
 
-**3. 验证安装**
-
-重启 OpenCode 后运行：
+**3. 配置环境变量**
 
 ```bash
-opencode agent list
+# MCP context7 API key（必填，从 https://context7.com 获取）
+export CONTEXT7_API_KEY="ctx7sk-xxxxxxxx"
+
+# 自定义 provider 的密钥（按需）
+export MINIMAX_API_KEY="your-key"
 ```
 
-应看到 `行者 (primary)`、`谋士 (primary)`、`中军 (primary)` 和 10 个子代理，内置的 `build`、`plan`、`general`、`explore` 已被禁用。
+Windows 永久写入：`setx CONTEXT7_API_KEY "ctx7sk-xxxxxxxx"`
+
+**4. 启动并验证**
+
+```bash
+opencode
+```
+
+进入会话后：
+
+```
+/agents
+```
+
+应能看到 `forge (primary)` 与 御史 / 刺史 / 明镜 / 校验 / 工匠 / 匠作 / 斥候 / 都尉 八个 subagent。
 
 ---
 
 ## 配置说明
 
-### `opencode.json`
+### `opencode.json` 关键字段
 
 ```jsonc
 {
-  "default_agent": "行者",        // 默认使用行者作为主代理
-  "agent": {
-    "build": { "disable": true },  // 禁用内置代理
-    "plan": { "disable": true },
-    "general": { "disable": true },
-    "explore": { "disable": true }
+  "default_agent": "build",        // 默认主代理，可通过 Tab 切到 forge
+  "instructions": [                // 顶层规则集，按顺序加载
+    "~/.config/opencode/rules/character.md",
+    "~/.config/opencode/AGENTS.md",
+    "~/.config/opencode/rules/coding-standards.md",
+    "~/.config/opencode/rules/product-workflow.md",
+    "~/.config/opencode/rules/security.md",
+    "~/.config/opencode/rules/context-compression.md",
+    "~/.config/opencode/rules/evidence-first.md"
+  ],
+  "skills": {
+    "paths": ["~/.config/opencode/forge-skills"]   // 注册 15 个 SKILL.md
   },
+  "mcp": {
+    "context7":             { "type": "local",  "command": ["npx","-y","@upstash/context7-mcp","--api-key","{env:CONTEXT7_API_KEY}"] },
+    "exa":                  { "type": "remote", "url": "https://mcp.exa.ai/mcp" },
+    "interleaved-thinking": { "type": "local",  "command": ["npx","-y","@jochenyang/interleaved-thinking"] },
+    "time-mcp":             { "type": "local",  "command": ["npx","-y","time-mcp"] }
+  },
+  "plugin": [
+    "@franlol/opencode-md-table-formatter@0.0.6",
+    "./plugins/notification-plugin.js",
+    "./plugins/forge-plugin.js",
+    "./plugins/opencode-mission.js"
+  ],
   "permission": {
-    "bash": {
-      "git push*": "ask",          // 危险操作需确认
-      "rm *": "ask",
-      "*": "allow"                 // 其他命令自动允许
-    }
+    "bash": { "*": "allow", "rm *": "ask", "Remove-Item *": "ask", "git rm*": "ask" },
+    "external_directory": "allow"
   }
 }
 ```
 
-### `tui.json`
+### 多代理并发（可选）
 
-```jsonc
-{
-  "keybinds": {
-    "switch_agent": "tab"  // Tab 键在主代理间切换
-  }
-}
-```
+开启后台 subagent 并发能力，让 Forge 用 `task background: true` 同时跑只读分析：
 
-### 多代理并发配置
-
-OpenCode 原生支持多代理在后台并发工作（例如并发的只读分析、多维度审查）。为了解锁真正的平台级多代理并发能力，您需要开启以下实验性功能环境变量：
-
-* **Windows (PowerShell)**:
-  ```powershell
-  $env:OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS="true"
-  ```
-* **Linux / macOS**:
-  ```bash
-  export OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true
-  ```
-
-开启该环境变量后，主代理将能够完整看到 `task` 编排工具的 `background` 参数，并根据我们设计的工作流自动拉起多个子代理进行并行的背景分析或代码审查，从而真正释放多代理系统的并行效能。
-
----
-
-## 设计理念
-
-### 为什么需要多代理？
-
-单一 Agent 在处理复杂任务时容易出现：
-
-- **角色混乱** — 同一个 Agent 既规划又实现又审查，容易自己批准自己
-- **scope 漂移** — 修改时顺手改了不相关的代码
-- **缺乏验证** — 改完就算完，没有独立审查环节
-
-Open Agent 用分工解决这些问题：
-
-| 原则 | 实现 |
-|------|------|
-| **职责分离** | 谋士只规划和提问，中军只编排，行者与执行子代理负责落地，审查者不修改 |
-| **权限最小化** | 只读代理物理层面无法写入，危险命令需确认 |
-| **独立审查** | 所有工作流必须经过御史审查，审查不过就修，修不过就报 |
-| **有限重试** | 修复循环上限 3 次，防止无限循环 |
-| **上下文传递** | HANDOFF 协议确保代理间信息完整传递 |
-| **模式锚定** | 三个主代理每轮自报当前模式，避免 Tab 切换后沿用旧上下文误判身份 |
-
-### 三种使用姿势
-
-| 场景 | 入口 | 说明 |
-|------|------|------|
-| 日常开发 | `@行者` | 普通任务直接做；复杂团队工作流建议切到中军或显式使用 `/orchestrate` |
-| 架构决策 | `@谋士` | plan 模式，优先用 question 工具收集关键需求，只分析不动手 |
-| 团队编排 | `@中军` | 多智能体团队并发协调入口，只发 task，不直接 edit/write/bash |
+- **Windows**：`setx OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS "true"`
+- **Linux/macOS**：`export OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true`
 
 ---
 
@@ -302,42 +331,70 @@ Open Agent 用分工解决这些问题：
 
 ```
 open-agent/
-├── opencode.json               # OpenCode 全局配置（禁用内置代理 + 权限规则）
-├── tui.json                    # TUI 快捷键配置
+├── opencode.json                # 主配置（instructions / skills / mcp / plugin / permission）
+├── tui.json                     # TUI 快捷键
+├── AGENTS.md                    # 顶层 agent 入口（角色 + 交互机制）
+├── LICENSE                      # MIT
 └── .opencode/
-    ├── agents/                 # 代理定义（13 个 .md 文件）
-    │   ├── 中军.md             #   primary  — 团队总指挥
-    │   ├── 行者.md             #   primary  — 日常执行
-    │   ├── 谋士.md             #   primary  — 只读规划
-    │   ├── 策士.md             #   subagent — 任务拆解
-    │   ├── 探路.md             #   subagent — 代码定位
-    │   ├── 御史.md             #   subagent — 代码审查
-    │   ├── 明镜.md             #   subagent — 调试定位
-    │   ├── 校验.md             #   subagent — TDD 测试
-    │   ├── 工匠.md             #   subagent — 通用实现
-    │   ├── 刺史.md             #   subagent — 安全审查
-    │   ├── 匠作.md             #   subagent — 数据库迁移
-    │   ├── 斥候.md             #   subagent — 性能分析
-    │   └── 都尉.md             #   subagent — 部署运维
+    ├── agents/                  # 9 个 agent 定义
+    │   ├── Forge.md             #   primary  — spec-driven 编排器
+    │   ├── 御史.md              #   subagent — 代码审查
+    │   ├── 刺史.md              #   subagent — 安全审查
+    │   ├── 明镜.md              #   subagent — 调试定位
+    │   ├── 校验.md              #   subagent — TDD 测试
+    │   ├── 工匠.md              #   subagent — 通用实现
+    │   ├── 匠作.md              #   subagent — 数据库迁移
+    │   ├── 斥候.md              #   subagent — 性能分析
+    │   └── 都尉.md              #   subagent — 部署运维
+    ├── forge-skills/            # 15 个 SKILL.md（ask/brainstorm/.../worktree）
+    ├── tools/                   # 5 个自定义 TS 工具 + parsers/（7 种语言）
+    ├── plugins/                 # 4 个 plugin（forge / notification / mission / vision-helper）
+    ├── rules/                   # 6 套规则（character / coding-standards / ...）
+    ├── themes/                  # 4 套主题（mimo / minimax / mytheme / smoke）
     └── commands/
-        └── orchestrate.md      # /orchestrate 工作流引擎定义
+        └── orchestrate.md       # 显式工作流命令（保留，待与 Forge 体系融合）
 ```
+
+---
+
+## 设计理念
+
+### 从"prompt 编排"到"skill 编排"
+
+旧版 Open Agent 用三个主代理（中军 / 行者 / 谋士）+ prompt 内固化的工作流来组织协作；新版改用 **Forge + 15 Skill** 的可插拔模式：
+
+| 维度 | 旧版（prompt-driven） | 新版（skill-driven） |
+|------|----------------------|----------------------|
+| 工作流变更 | 改主代理 prompt | 加一份 SKILL.md |
+| 工作流可见性 | 嵌在 agent 文件里 | 独立文件、独立版本 |
+| 用户介入 | Tab 切换 + 自然语言 | `/skill <name>` 或自动加载 |
+| 角色边界 | 三主代理互不串台 | 单 Forge 协调 + subagent 分工 |
+| 评审 | 单次 御史 PASS | 两阶段评审（spec-reviewer + code-quality） |
+
+### 三个不可让步的原则
+
+| 原则 | 实现 |
+|------|------|
+| **证据优先** | 任何非显然结论必须自标 L1–L4 证据等级；L3/L4 必须给出验证路径（`rules/evidence-first.md`） |
+| **职责分离** | Forge 只调度、subagent 只做本职、reviewer 不写代码、ask 不替用户做决定 |
+| **完成定义** | 未跑 verify 不算完成；"应该没问题"不算证据；两阶段评审未通过不算合格 |
 
 ---
 
 ## 贡献
 
-欢迎任何形式的贡献！
+欢迎以下形式的贡献：
 
-- **报告问题** — 提 Issue 描述你遇到的问题或建议
-- **改进代理** — 优化代理 prompt、补充边界条件处理
-- **新增工作流** — 在 `orchestrate.md` 中添加新的工作流类型
-- **新增代理** — 在 `.opencode/agents/` 中添加新的专长子代理
+- **新增 Skill** — 在 `.opencode/forge-skills/<name>/SKILL.md` 添加新流程；参考 `new-skill` 的写法清单
+- **优化 Subagent** — 调整 `.opencode/agents/*.md` 的 prompt 与权限边界
+- **扩展工具** — 在 `.opencode/tools/` 增加跨语言静态分析工具
+- **完善规则** — 在 `.opencode/rules/` 补充工程实践与角色行为规范
+- **报告问题** — 提 Issue 描述遇到的问题或建议
 
-提交时请遵循 commit 规范：`<type>(<scope>): <subject>`
+提交规范由 `git-conventions` 工具统一管理；请确保 commit message 符合 `<type>(<scope>): <subject>` 的英文 imperative 格式，且不夹带 AI 签名。
 
 ---
 
 ## 协议
 
-[MIT](./LICENSE) © 2026 Jochenyang open-agent contributors
+[MIT](./LICENSE) © 2026 JochenYang & open-agent contributors
