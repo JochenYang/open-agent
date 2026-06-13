@@ -36,7 +36,7 @@
 ## 特性
 
 - **Skill 驱动编排** — Forge agent 不再硬编码工作流，而是按任务特征动态加载 15 个 Skill；新增工作流 = 加一份 SKILL.md
-- **专长子代理可调** — 御史 / 刺史 / 校验 / 明镜 / 工匠 / 匠作 / 斥候 / 都尉 八个职责清晰的 subagent，覆盖审查、调试、TDD、实现、数据库、性能、部署
+- **专长子代理可调** — Reviewer / Guard / Tester / Detective / Builder / DBA / Perf / Ops 八个职责清晰的 subagent，覆盖审查、调试、TDD、实现、数据库、性能、部署
 - **规格优先与两阶段评审** — 复杂任务先经 brainstorm 形成 spec，subagent 工作完毕后由 spec-reviewer + code-quality-reviewer 双轨复核
 - **证据优先与防侥幸** — `rules/evidence-first.md` 引入 L1–L4 证据分级，所有非显然结论强制标注证据等级与验证路径
 - **自带工程工具** — 内置 `dep-graph` / `dead-code` / `schema-diff` / `git-conventions` / `vision` 五大跨语言静态分析与协作工具
@@ -68,14 +68,14 @@ graph TB
 
     subgraph Subagents["专长 Subagent (8)"]
         direction LR
-        YS["御史<br/>代码审查"]
-        CS["刺史<br/>安全审查"]
-        MJ["明镜<br/>调试定位"]
-        JY["校验<br/>TDD 测试"]
-        GJ["工匠<br/>通用实现"]
-        JZ["匠作<br/>数据库迁移"]
-        XH["斥候<br/>性能分析"]
-        DW["都尉<br/>部署运维"]
+        YS["Reviewer<br/>代码审查"]
+        CS["Guard<br/>安全审查"]
+        MJ["Detective<br/>调试定位"]
+        JY["Tester<br/>TDD 测试"]
+        GJ["Builder<br/>通用实现"]
+        JZ["DBA<br/>数据库迁移"]
+        XH["Perf<br/>性能分析"]
+        DW["Ops<br/>部署运维"]
     end
 
     subgraph Infra["工具 / 插件 / MCP / Rules"]
@@ -110,40 +110,40 @@ graph TB
 
 15 个 SKILL.md 散布在 `.opencode/forge-skills/`，由 Forge agent 用 `skill` 工具按需加载。Skill 自带"何时该用 / 何时不该用 / 检查清单 / 反例"四段式说明。
 
-| 阶段 | Skill | 作用 |
-|------|-------|------|
-| 探索 | `brainstorm` | 任何需要创意/方案的工作前先跑，输出可签字的 spec |
-| 探索 | `ask` | 决策、澄清、审批的统一入口；无人值守时自动决策 |
-| 规划 | `plan` | 把 spec 拆成多步任务，写成可执行 plan |
-| 执行 | `subagent` | 通过 `dispatcher` + `task` 派发独立 subagent，强制两阶段评审 |
-| 执行 | `execute` | 在新 session 中执行已写好的 plan，带 review checkpoint |
-| 执行 | `tdd` | 强制 RED-GREEN-REFACTOR-VERIFY，禁止跳测试 |
-| 执行 | `parallel` | 2+ 个互不依赖任务的并行调度模板 |
-| 验证 | `verify` | 声称"完成 / 通过 / 修好"前必须跑的证据采集 |
-| 验证 | `review` | 主干完成或合并前的综合 review |
-| 验证 | `debug` | bug / 测试失败 / 异常行为时优先调用 |
-| 协作 | `feedback` | 收到 code review 反馈时的核实与回应流程 |
-| 协作 | `worktree` | 隔离工作区，避免污染当前分支 |
-| 收尾 | `merge` | 实现完成、测试通过后选择合并 / PR / 清理 |
-| 收尾 | `report` | 多次 spec 迭代后合并出最终态报告并沉淀 lesson |
-| 元能力 | `new-skill` | 新建 / 修改 skill，含 subagent 验证流程 |
+| 阶段   | Skill        | 作用                                                        |
+|--------|--------------|-------------------------------------------------------------|
+| 探索   | `brainstorm` | 任何需要创意/方案的工作前先跑，输出可签字的 spec             |
+| 探索   | `ask`        | 决策、澄清、审批的统一入口；无人值守时自动决策                 |
+| 规划   | `plan`       | 把 spec 拆成多步任务，写成可执行 plan                        |
+| 执行   | `subagent`   | 通过 `dispatcher` + `task` 派发独立 subagent，强制两阶段评审 |
+| 执行   | `execute`    | 在新 session 中执行已写好的 plan，带 review checkpoint       |
+| 执行   | `tdd`        | 强制 RED-GREEN-REFACTOR-VERIFY，禁止跳测试                   |
+| 执行   | `parallel`   | 2+ 个互不依赖任务的并行调度模板                             |
+| 验证   | `verify`     | 声称"完成 / 通过 / 修好"前必须跑的证据采集                  |
+| 验证   | `review`     | 主干完成或合并前的综合 review                               |
+| 验证   | `debug`      | bug / 测试失败 / 异常行为时优先调用                         |
+| 协作   | `feedback`   | 收到 code review 反馈时的核实与回应流程                     |
+| 协作   | `worktree`   | 隔离工作区，避免污染当前分支                                 |
+| 收尾   | `merge`      | 实现完成、测试通过后选择合并 / PR / 清理                     |
+| 收尾   | `report`     | 多次 spec 迭代后合并出最终态报告并沉淀 lesson               |
+| 元能力 | `new-skill`  | 新建 / 修改 skill，含 subagent 验证流程                      |
 
 ---
 
 ## Subagent 一览
 
-由 Forge 通过 `task` 工具调度，不需要用户手动召唤。命名沿用古制以利记忆。
+由 Forge 通过 `task` 工具调度，不需要用户手动召唤。
 
-| Subagent | 色相 | 读写 | 专长 | 典型调用 |
-|----------|------|------|------|----------|
-| **御史** | 堇 | 只读 | 代码审查（正确性 / 性能 / 并发 / 边界 / 可维护性 / 测试缺口） | 合并前质量门 |
-| **刺史** | 赤 | 只读 | 安全专项（认证 / 授权 / 密钥 / PII / 支付 / 注入 / 访问控制） | 涉及 auth / 支付 / PII |
-| **明镜** | 橙 | 只读 | Bug 复现、根因定位、状态分叉追踪、最小修复建议 | 排查报错、复现 |
-| **校验** | 红 | 可写 | TDD、补测试、运行验证命令、修复到通过 | 写测试、回归验证 |
-| **工匠** | 蓝 | 可写 | 范围清晰的通用代码实现、重构、修复执行 | 普通开发任务 |
-| **匠作** | 青 | 可写 | schema、索引、迁移脚本、回填、数据完整性、回滚 | 数据库变更 |
-| **斥候** | 黄 | 只读 | 慢查询、N+1、CPU/内存热点、CWV、缓存与复杂度 | 性能审计 |
-| **都尉** | 蓝 | 可写 | CI/CD、Docker、K8s、Terraform、监控、告警、回滚 | 部署与基础设施 |
+| Subagent      | 色相 | 读写 | 专长                                                        | 典型调用               |
+|---------------|------|------|-------------------------------------------------------------|------------------------|
+| **Reviewer**  | 堇   | 只读 | 代码审查（正确性 / 性能 / 并发 / 边界 / 可维护性 / 测试缺口） | 合并前质量门           |
+| **Guard**     | 赤   | 只读 | 安全专项（认证 / 授权 / 密钥 / PII / 支付 / 注入 / 访问控制） | 涉及 auth / 支付 / PII |
+| **Detective** | 橙   | 只读 | Bug 复现、根因定位、状态分叉追踪、最小修复建议                 | 排查报错、复现          |
+| **Tester**    | 红   | 可写 | TDD、补测试、运行验证命令、修复到通过                          | 写测试、回归验证        |
+| **Builder**   | 蓝   | 可写 | 范围清晰的通用代码实现、重构、修复执行                        | 普通开发任务           |
+| **DBA**       | 青   | 可写 | schema、索引、迁移脚本、回填、数据完整性、回滚                   | 数据库变更             |
+| **Perf**      | 黄   | 只读 | 慢查询、N+1、CPU/内存热点、CWV、缓存与复杂度                    | 性能审计               |
+| **Ops**       | 蓝   | 可写 | CI/CD、Docker、K8s、Terraform、监控、告警、回滚                   | 部署与基础设施         |
 
 ---
 
@@ -151,43 +151,43 @@ graph TB
 
 ### 自定义工具（`.opencode/tools/`）
 
-| 工具 | 作用 | 多语言支持 |
-|------|------|-----------|
-| **`dep-graph`** | 模块依赖图、循环依赖检测、耦合热点、架构分层校验 | TS/JS · Python · Go · C# · Rust |
-| **`dead-code`** | 跨语言无用导出检测（无被依赖模块） | TS/JS · Python · Go · C# · Rust · C++ |
-| **`schema-diff`** | git ref 间的类型契约语义对比，区分 BREAKING / SAFE / WARNING | TS/JS · Python · Go · C# · Rust |
-| **`git-conventions`** | 提交信息与分支命名规范校验，返回完整规约文档 | — |
-| **`vision`** | 调用外部视觉模型识别本地图像 | 兼容 OpenAI / MiniMax |
+| 工具                  | 作用                                                        | 多语言支持                            |
+|-----------------------|-------------------------------------------------------------|---------------------------------------|
+| **`dep-graph`**       | 模块依赖图、循环依赖检测、耦合热点、架构分层校验               | TS/JS · Python · Go · C# · Rust       |
+| **`dead-code`**       | 跨语言无用导出检测（无被依赖模块）                            | TS/JS · Python · Go · C# · Rust · C++ |
+| **`schema-diff`**     | git ref 间的类型契约语义对比，区分 BREAKING / SAFE / WARNING | TS/JS · Python · Go · C# · Rust       |
+| **`git-conventions`** | 提交信息与分支命名规范校验，返回完整规约文档                 | —                                     |
+| **`vision`**          | 调用外部视觉模型识别本地图像                                | 兼容 OpenAI / MiniMax                 |
 
 ### Plugin（`.opencode/plugins/`）
 
-| Plugin | 作用 |
-|--------|------|
-| **`forge-plugin.js`** | 注入 Forge 体系运行时（`punchcard` / `forge_check` / `dispatcher`） |
-| **`notification-plugin.js`** | 长任务 / mission 完成时本地通知 |
-| **`opencode-mission.js`** | Mission 自治模式：下达带 turn/token/wallclock 预算的长任务 |
-| **`vision-helper.ts`** | `vision` 工具的运行时支持 |
-| `@franlol/opencode-md-table-formatter` | npm 引入的 Markdown 表格美化器 |
+| Plugin                                 | 作用                                                              |
+|----------------------------------------|-------------------------------------------------------------------|
+| **`forge-plugin.js`**                  | 注入 Forge 体系运行时（`punchcard` / `forge_check` / `dispatcher`） |
+| **`notification-plugin.js`**           | 长任务 / mission 完成时本地通知                                   |
+| **`opencode-mission.js`**              | Mission 自治模式：下达带 turn/token/wallclock 预算的长任务         |
+| **`vision-helper.ts`**                 | `vision` 工具的运行时支持                                         |
+| `@franlol/opencode-md-table-formatter` | npm 引入的 Markdown 表格美化器                                    |
 
 ### MCP 服务
 
-| 服务 | 类型 | 作用 |
-|------|------|------|
-| **context7** | local | 任意库的最新文档与代码示例 |
-| **exa** | remote | 自然语言联网检索 + 网页正文提取 |
-| **interleaved-thinking** | local | 显式 thinking → tool_call → analysis 结构化推理 |
-| **time-mcp** | local | 时区换算、当前时间、周数、相对时间 |
+| 服务                     | 类型   | 作用                                            |
+|--------------------------|--------|-------------------------------------------------|
+| **context7**             | local  | 任意库的最新文档与代码示例                      |
+| **exa**                  | remote | 自然语言联网检索 + 网页正文提取                 |
+| **interleaved-thinking** | local  | 显式 thinking → tool_call → analysis 结构化推理 |
+| **time-mcp**             | local  | 时区换算、当前时间、周数、相对时间                 |
 
 ### 规则集（顶层 `instructions`）
 
-| 规则 | 摘要 |
-|------|------|
-| `character.md` | 阿亚酱的角色定位、沟通风格、陪伴要求 |
-| `coding-standards.md` | 工程基线、不可变量、错误处理、Anti-Rationalization |
-| `product-workflow.md` | Discovery → Planning → Building → Polish → Handoff 五段交付 |
-| `security.md` | 秘钥管理、事件响应、高风险升级、验证输出契约 |
-| `context-compression.md` | 压缩前三问决策树、必须保留 / 允许压缩清单 |
-| `evidence-first.md` | L1–L4 证据分级 + 5 步证据流程 + 反猜测清单 |
+| 规则                     | 摘要                                                        |
+|--------------------------|-------------------------------------------------------------|
+| `character.md`           | 阿亚酱的角色定位、沟通风格、陪伴要求                          |
+| `coding-standards.md`    | 工程基线、不可变量、错误处理、Anti-Rationalization             |
+| `product-workflow.md`    | Discovery → Planning → Building → Polish → Handoff 五段交付 |
+| `security.md`            | 秘钥管理、事件响应、高风险升级、验证输出契约                   |
+| `context-compression.md` | 压缩前三问决策树、必须保留 / 允许压缩清单                    |
+| `evidence-first.md`      | L1–L4 证据分级 + 5 步证据流程 + 反猜测清单                  |
 
 ---
 
@@ -276,7 +276,7 @@ opencode
 /agents
 ```
 
-应能看到 `forge (primary)` 与 御史 / 刺史 / 明镜 / 校验 / 工匠 / 匠作 / 斥候 / 都尉 八个 subagent。
+应能看到 `forge (primary)` 与 Reviewer / Guard / Detective / Tester / Builder / DBA / Perf / Ops 八个 subagent。
 
 ---
 
@@ -338,14 +338,14 @@ open-agent/
 └── .opencode/
     ├── agents/                  # 9 个 agent 定义
     │   ├── Forge.md             #   primary  — spec-driven 编排器
-    │   ├── 御史.md              #   subagent — 代码审查
-    │   ├── 刺史.md              #   subagent — 安全审查
-    │   ├── 明镜.md              #   subagent — 调试定位
-    │   ├── 校验.md              #   subagent — TDD 测试
-    │   ├── 工匠.md              #   subagent — 通用实现
-    │   ├── 匠作.md              #   subagent — 数据库迁移
-    │   ├── 斥候.md              #   subagent — 性能分析
-    │   └── 都尉.md              #   subagent — 部署运维
+    │   ├── Reviewer.md            #   subagent — 代码审查
+    │   ├── Guard.md               #   subagent — 安全审查
+    │   ├── Detective.md           #   subagent — 调试定位
+    │   ├── Tester.md              #   subagent — TDD 测试
+    │   ├── Builder.md             #   subagent — 通用实现
+    │   ├── DBA.md                 #   subagent — 数据库迁移
+    │   ├── Perf.md                #   subagent — 性能分析
+    │   └── Ops.md                 #   subagent — 部署运维
     ├── forge-skills/            # 15 个 SKILL.md（ask/brainstorm/.../worktree）
     ├── tools/                   # 5 个自定义 TS 工具 + parsers/（7 种语言）
     ├── plugins/                 # 4 个 plugin（forge / notification / mission / vision-helper）
@@ -363,21 +363,21 @@ open-agent/
 
 旧版 Open Agent 用三个主代理（中军 / 行者 / 谋士）+ prompt 内固化的工作流来组织协作；新版改用 **Forge + 15 Skill** 的可插拔模式：
 
-| 维度 | 旧版（prompt-driven） | 新版（skill-driven） |
-|------|----------------------|----------------------|
-| 工作流变更 | 改主代理 prompt | 加一份 SKILL.md |
-| 工作流可见性 | 嵌在 agent 文件里 | 独立文件、独立版本 |
-| 用户介入 | Tab 切换 + 自然语言 | `/skill <name>` 或自动加载 |
-| 角色边界 | 三主代理互不串台 | 单 Forge 协调 + subagent 分工 |
-| 评审 | 单次 御史 PASS | 两阶段评审（spec-reviewer + code-quality） |
+| 维度         | 旧版（prompt-driven） | 新版（skill-driven）                       |
+|--------------|---------------------|------------------------------------------|
+| 工作流变更   | 改主代理 prompt     | 加一份 SKILL.md                          |
+| 工作流可见性 | 嵌在 agent 文件里   | 独立文件、独立版本                        |
+| 用户介入     | Tab 切换 + 自然语言 | `/skill <name>` 或自动加载               |
+| 角色边界     | 三主代理互不串台    | 单 Forge 协调 + subagent 分工            |
+| 评审         | 单次 Reviewer PASS  | 两阶段评审（spec-reviewer + code-quality） |
 
 ### 三个不可让步的原则
 
-| 原则 | 实现 |
-|------|------|
+| 原则         | 实现                                                                                    |
+|--------------|-----------------------------------------------------------------------------------------|
 | **证据优先** | 任何非显然结论必须自标 L1–L4 证据等级；L3/L4 必须给出验证路径（`rules/evidence-first.md`） |
-| **职责分离** | Forge 只调度、subagent 只做本职、reviewer 不写代码、ask 不替用户做决定 |
-| **完成定义** | 未跑 verify 不算完成；"应该没问题"不算证据；两阶段评审未通过不算合格 |
+| **职责分离** | Forge 只调度、subagent 只做本职、reviewer 不写代码、ask 不替用户做决定                     |
+| **完成定义** | 未跑 verify 不算完成；"应该没问题"不算证据；两阶段评审未通过不算合格                      |
 
 ---
 
