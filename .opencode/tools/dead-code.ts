@@ -224,7 +224,7 @@ Algorithm:
 Supports: TypeScript/JS, Python, Go, C#, Rust, C++.
 Use when cleaning up technical debt, before refactoring, or during code review.`,
   args: {
-    entry: tool.schema.string().describe("Source directory to analyze (relative to project)").default("src"),
+    entry: tool.schema.string().describe("Source directory to analyze (relative to project)").default("."),
     entry_points: tool.schema.array(tool.schema.string()).describe("Entry point modules that should never be flagged as dead (e.g. ['index', 'main'])").default(DEFAULT_ENTRIES),
     min_exports: tool.schema.number().describe("Minimum exported symbols in a dead module to report").default(1),
     lang: tool.schema.array(tool.schema.string()).describe("Explicit language(s) to scan (auto-detected if omitted). Options: typescript, python, go, csharp, rust, cpp").optional(),

@@ -269,7 +269,7 @@ then:
 Supports: TypeScript/JS, Python, Go, C#, Rust. Language is auto-detected from project files.
 This performs cross-file graph analysis that cannot be done with simple grep or shell commands. Use when refactoring, evaluating module coupling, or enforcing architectural boundaries.`,
   args: {
-    entry: tool.schema.string().describe("Entry file or directory to analyze (relative to project)").default("src"),
+    entry: tool.schema.string().describe("Entry file or directory to analyze (relative to project)").default("."),
     depth: tool.schema.number().describe("Max depth for tree output").default(3),
     format: tool.schema.enum(["tree", "flat", "summary"]).describe("Output format").default("summary"),
     hotspot_threshold: tool.schema.number().describe("Min dependents to flag as coupling hotspot").default(5),
