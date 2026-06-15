@@ -490,10 +490,113 @@ const forgeCheckTool = {
   },
 }
 
+// === forge_skill: explicit skill loader + subagent injector ===
+//
+// Why this exists:
+// - The upstream `skill` tool loads SKILL.md content on demand, but the model
+//   tends to *mention* skill names in its thinking without actually calling it.
+// - When dispatching subagents, the orchestrator is supposed to inject relevant
+//   skill content into the subagent prompt (per forge:subagent SKILL.md), but
+//   this step is easy to skip.
+// - This tool does BOTH: it forces the model to invoke a tool (not just talk
+//   about it), and provides a `mode=inject` variant that returns a formatted
+//   block ready to paste into a subagent prompt.
+//
+// NO conflict with the upstream `skill` tool: different id, both coexist.
+//   This tool's `mode=load` returns content with a clear "loaded" marker;
+//   `mode=inject` is a NEW capability upstream doesn't have.
+
+const FORGE_SKILL_SEARCH_DIRS = [
+  path.join(os.homedir(), ".config", "opencode", "forge-skills"),
+  path.join(os.homedir(), ".config", "opencode", "skills"),
+  path.join(os.homedir(), ".config", "opencode", "agents"),
+  path.join(os.homedir(), ".claude", "skills"),
+  path.join(os.homedir(), ".agents", "skills"),
+]
+
+function findForgeSkill(name) {
+  // Skill name may be "forge:brainstorm" (namespaced) or "brainstorm" (bare).
+  // The directory is always the last segment after the colon.
+  const dirName = String(name).split(":").pop()
+  if (!dirName) return undefined
+
+  for (const root of FORGE_SKILL_SEARCH_DIRS) {
+    // Exact match: <root>/<dirName>/SKILL.md
+    let candidate = path.join(root, dirName, "SKILL.md")
+    if (fs.existsSync(candidate)) return candidate
+    // Try with namespace prefix: <root>/<namespace>/<dirName>/SKILL.md
+    // (e.g., for "forge:brainstorm" the path might be <root>/forge/brainstorm/SKILL.md)
+    const namespace = String(name).includes(":") ? String(name).split(":")[0] : null
+    if (namespace && namespace !== dirName) {
+      candidate = path.join(root, namespace, dirName, "SKILL.md")
+      if (fs.existsSync(candidate)) return candidate
+    }
+  }
+  return undefined
+}
+
+const forgeSkillTool = {
+  description:
+    "MUST call this to load a forge skill's full SKILL.md content (not just the name from <available_skills>). Without this call, you only have the skill's description — NOT the workflow. Use mode='load' to load into your own context, or mode='inject' to get a formatted block ready to paste into a subagent prompt you dispatch via the `task` tool. NEVER confuse with the upstream `skill` tool — `skill` loads too, but `forge_skill` adds the inject-for-subagent capability and makes the loading action explicit/auditable.",
+  args: {
+    name: {
+      type: "string",
+      description: "Skill name (e.g., 'forge:brainstorm', 'forge:subagent'). The part after the last ':' is used as the directory name to look up SKILL.md.",
+    },
+    mode: {
+      type: "string",
+      description: "'load' (default): return the SKILL.md content for your own context. 'inject': return a formatted block ready to paste into a subagent prompt.",
+    },
+  },
+  execute: async (args, ctx) => {
+    const name = String(args.name ?? "").trim()
+    if (!name) return "forge_skill: name is required (e.g., 'forge:brainstorm')"
+    const mode = String(args.mode ?? "load").trim()
+
+    const file = findForgeSkill(name)
+    if (!file) {
+      return `forge_skill: skill "${name}" not found.
+
+Searched these locations for a SKILL.md:
+${FORGE_SKILL_SEARCH_DIRS.map((d) => `  - ${d}/<skill-dir>/SKILL.md`).join("\n")}
+
+Check:
+- Did you spell the skill name correctly?
+- Is the skill directory named after the part after the last ":"?
+- Or run "opencode debug skill" to see all registered skills.`
+    }
+
+    const content = fs.readFileSync(file, "utf-8")
+
+    if (mode === "inject") {
+      return `<!-- forge_skill:${name} -->
+The following skill is available to you. You can invoke it by name using the \`skill\` tool, or read the SKILL.md content below directly. The orchestrator has already loaded this skill's content into your context.
+
+<skill name="${name}">
+${content.trim()}
+</skill>
+<!-- /forge_skill:${name} -->
+
+USAGE: Paste the above block verbatim into the subagent's prompt before calling the \`task\` tool. The subagent will see this content as part of its instructions.`
+    }
+
+    // mode = "load" (default)
+    return `<forge_skill_loaded name="${name}">
+${content.trim()}
+</forge_skill_loaded>
+
+✓ forge_skill: loaded "${name}" into your context.
+File: ${file}
+
+Now follow the instructions in this skill. If dispatching a subagent that also needs this skill, call forge_skill(mode="inject", name="${name}") to get the inject block.`
+  },
+}
+
 const plugin = {
   id: "forge-plugin",
   server: () => ({
     tool: {
+      "forge-skill": forgeSkillTool,
       punchcard: punchcardTool,
       dispatcher: dispatcherTool,
       "forge-check": forgeCheckTool,
