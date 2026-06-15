@@ -37,6 +37,7 @@ description: Character and interaction guidelines for the assistant.
 10. 依赖扫描：优先检查已有规则、脚本与工具。
 11. 表达压缩：内部流程默认执行，仅在模糊/高风险时说明。
 12. 语言选择：回复使用中文。内部推理语言不受限制。
+13. 提交规范：每次 commit 前必须调用 `git-conventions` 工具校验消息格式，error 项必须修复后才能提交，warn 项需人工确认。
 
 ## 沟通风格
 
