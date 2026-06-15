@@ -24,7 +24,12 @@ interface CheckResult {
 
 // ── Helpers ───────────────────────────────────
 
-/** Extract subject part (strip `type(scope): ` prefix) */
+/** Get the first line of the commit message (the subject line) */
+function getSubjectLine(msg: string): string {
+  return msg.split("\n")[0]
+}
+
+/** Extract description part (strip `type(scope): ` prefix) */
 function extractSubject(msg: string): string {
   return msg.replace(/^[^(]+(\([^)]+\))?:\s*/, "")
 }
@@ -36,32 +41,32 @@ function checkFormat(msg: string): CheckResult {
     return {
       status: "error",
       label: "Format",
-      detail: "Must match `<type>(<scope>): <subject>`, e.g. `feat(auth): add login flow`",
+      detail: "Must match `<type>(<scope>): <description>`, e.g. `feat(auth): add login flow`",
     }
   }
-  return { status: "pass", label: "Format", detail: "Matches `<type>(<scope>): <subject>`" }
+  return { status: "pass", label: "Format", detail: "Matches `<type>(<scope>): <description>`" }
 }
 
 function checkLength(msg: string): CheckResult {
-  const subject = extractSubject(msg)
-  if (subject.length > 72) {
+  const line = getSubjectLine(msg)
+  if (line.length > 72) {
     return {
       status: "error",
       label: "Length",
-      detail: `Subject is ${subject.length} chars (hard limit <= 72)`,
+      detail: `Subject line is ${line.length} chars (hard limit <= 72)`,
     }
   }
-  if (subject.length > 50) {
+  if (line.length > 50) {
     return {
       status: "warn",
       label: "Length",
-      detail: `Subject is ${subject.length} chars (recommended <= 50)`,
+      detail: `Subject line is ${line.length} chars (recommended <= 50)`,
     }
   }
   return {
     status: "pass",
     label: "Length",
-    detail: `${subject.length} chars (<= 50)`,
+    detail: `${line.length} chars (<= 50)`,
   }
 }
 
@@ -198,9 +203,15 @@ function buildGuide(files?: string[]): string {
     "  - Use English only (unless the user specifies a different language)",
     "  - Imperative mood (add, fix, update -- not added, fixed, updated)",
     "  - Subject starts with lowercase",
-    "  - Subject <= 50 chars recommended",
+    "  - Subject line <= 72 chars (recommended <= 50)",
+    "  - Subject line = `<type>(<scope>): <description>`, length counts the whole line",
     "  - No trailing period",
     "  - No AI signature or Co-Authored-By",
+    "",
+    "[Scope Rules]",
+    "  - Scope is optional; add it when the change is specific to a module/area",
+    "  - Use lowercase kebab-case or snake_case, e.g. `auth`, `api`, `user-profile`",
+    "  - The scope appears in parens: `fix(auth): handle null token`",
     "",
     "[Body Rules]",
     "  - Blank line between subject and body",
@@ -208,17 +219,13 @@ function buildGuide(files?: string[]): string {
     "  - One bullet per logical change",
     "  - Bullet format: <thing> <short verb phrase>",
     "  - Body <= 15 lines; split into multiple commits if longer",
-    "  - Subject: prefer no scope, lowercase, imperative mood, <= 50 chars",
     "",
     "[Body Example -- preferred style]",
-    "  docs: add open source docs and CI scaffolding",
+    "  feat: add user profile page",
     "  ",
-    "  - README covering install, config, and usage",
-    "  - CHANGELOG for v0.1 and v0.2 breaking changes",
-    "  - MIT LICENSE",
-    "  - CONTRIBUTING with commit and PR conventions",
-    "  - GitHub Actions CI: typecheck + test + build",
-    "  - Issue and PR templates",
+    "  - Profile form with avatar upload and crop",
+    "  - Form validation for required fields",
+    "  - Mobile-responsive layout",
     "",
     "[Body Hygiene -- NEVER paste raw tool output]",
     "  - No backslash-escaped tokens (\\ask\\, \\memory\\)",
