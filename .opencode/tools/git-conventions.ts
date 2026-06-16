@@ -37,7 +37,7 @@ function extractSubject(msg: string): string {
 // ── Validators ────────────────────────────────
 
 function checkFormat(msg: string): CheckResult {
-  if (!COMMIT_REGEX.test(msg)) {
+  if (!COMMIT_REGEX.test(getSubjectLine(msg))) {
     return {
       status: "error",
       label: "Format",
@@ -71,7 +71,7 @@ function checkLength(msg: string): CheckResult {
 }
 
 function checkCase(msg: string): CheckResult {
-  const subject = extractSubject(msg)
+  const subject = extractSubject(getSubjectLine(msg))
   if (!subject) {
     return { status: "warn", label: "Case", detail: "Could not extract subject" }
   }
@@ -86,10 +86,10 @@ function checkCase(msg: string): CheckResult {
 }
 
 function checkPeriod(msg: string): CheckResult {
-  if (msg.endsWith(".")) {
-    return { status: "warn", label: "Period", detail: "No trailing period" }
+  if (getSubjectLine(msg).endsWith(".")) {
+    return { status: "warn", label: "Period", detail: "No trailing period on subject" }
   }
-  return { status: "pass", label: "Period", detail: "No trailing period" }
+  return { status: "pass", label: "Period", detail: "No trailing period on subject" }
 }
 
 function checkAiSignature(msg: string): CheckResult {
