@@ -91,6 +91,79 @@ function findAstGrep(): string | null {
   return null
 }
 
+// ── Walk directory tree, return files matching the target language ──
+const EXT_TO_LANG: Record<string, string> = {
+  ".ts": "typescript",
+  ".tsx": "tsx",
+  ".js": "javascript",
+  ".jsx": "jsx",
+  ".mjs": "javascript",
+  ".cjs": "javascript",
+  ".py": "python",
+  ".rs": "rust",
+  ".go": "go",
+  ".java": "java",
+  ".c": "c",
+  ".h": "c",
+  ".cpp": "cpp",
+  ".cc": "cpp",
+  ".hpp": "cpp",
+  ".cs": "csharp",
+  ".css": "css",
+  ".html": "html",
+  ".sh": "bash",
+  ".bash": "bash",
+  ".json": "json",
+  ".yaml": "yaml",
+  ".yml": "yaml",
+  ".swift": "swift",
+  ".kt": "kotlin",
+  ".kts": "kotlin",
+  ".scala": "scala",
+  ".s": "scala",
+  ".rb": "ruby",
+  ".php": "php",
+  ".lua": "lua",
+  ".ex": "elixir",
+  ".exs": "elixir",
+  ".hs": "haskell",
+  ".lhs": "haskell",
+}
+
+const SKIP_DIRS = new Set([
+  "node_modules", ".git", "dist", "build", ".next", ".nuxt",
+  "coverage", "target", "out", "vendor", ".cache", ".turbo",
+])
+
+function walkFiles(root: string, lang: string): { path: string; rel: string }[] {
+  const out: { path: string; rel: string }[] = []
+  const stack: { abs: string; rel: string }[] = [{ abs: root, rel: "" }]
+  while (stack.length > 0) {
+    const { abs, rel } = stack.pop()!
+    let entries: fs.Dirent[]
+    try {
+      entries = fs.readdirSync(abs, { withFileTypes: true })
+    } catch {
+      continue
+    }
+    for (const e of entries) {
+      const childAbs = path.join(abs, e.name)
+      const childRel = rel ? `${rel}/${e.name}` : e.name
+      if (e.isDirectory()) {
+        if (SKIP_DIRS.has(e.name)) continue
+        if (e.name.startsWith(".") && e.name !== ".") continue
+        stack.push({ abs: childAbs, rel: childRel })
+      } else if (e.isFile()) {
+        const ext = path.extname(e.name).toLowerCase()
+        if (EXT_TO_LANG[ext] === lang) {
+          out.push({ path: childAbs, rel: childRel })
+        }
+      }
+    }
+  }
+  return out
+}
+
 // ── Format a single ast-grep JSON match ──
 function formatMatch(file: string, line: number, col: number, text: string): string {
   const lines = text.split("\n")
@@ -193,48 +266,109 @@ Search order: cwd-local \`node_modules/.bin/ast-grep\` first, then system PATH.`
     }
 
     const max = args.maxResults ?? 50
+    const CONCURRENCY = 16
 
-    // ── Run ast-grep with JSON output ──
-    let stdout: string
-    try {
-      const result = await exec(
-        bin,
-        ["run", "--pattern", args.pattern, "--lang", lang, "--json=compact", searchPath],
-        { maxBuffer: 50 * 1024 * 1024, timeout: 60_000 },
+    // ── Step 1: walk + stat for mtime (sort most-recent-first) ──
+    // We invoke ast-grep per-file (instead of once on the whole path) so we
+    // can: (a) sort by mtime, (b) catch per-file parse errors. The cost is
+    // N process spawns, which we amortize with concurrency 16 (mirrors mimo's
+    // grep.ts:91).
+    const candidates = walkFiles(searchPath, lang)
+    const fileStats: { path: string; rel: string; mtime: number }[] = []
+    const statErrors: string[] = []
+    for (const f of candidates) {
+      try {
+        const st = fs.statSync(f.path)
+        fileStats.push({ path: f.path, rel: f.rel, mtime: st.mtimeMs })
+      } catch (e) {
+        statErrors.push(`${f.rel}: stat failed: ${e instanceof Error ? e.message : String(e)}`)
+      }
+    }
+    // Newest first — what you changed today is what you usually want to see.
+    fileStats.sort((a, b) => b.mtime - a.mtime)
+
+    if (fileStats.length === 0) {
+      return `codesearch: pattern="${args.pattern}" lang=${lang} path=${searchPath}\n  No ${lang} files found.`
+    }
+
+    // ── Step 2: parallel ast-grep per file, accumulate matches + errors ──
+    const allMatches: any[] = []
+    const parseErrors: string[] = [...statErrors]
+    let truncated = false
+
+    outer: for (let i = 0; i < fileStats.length; i += CONCURRENCY) {
+      const batch = fileStats.slice(i, i + CONCURRENCY)
+      const results = await Promise.all(
+        batch.map(async (f) => {
+          try {
+            const { stdout } = await exec(
+              bin,
+              ["run", "--pattern", args.pattern, "--lang", lang, "--json=compact", f.path],
+              { maxBuffer: 10 * 1024 * 1024, timeout: 30_000 },
+            )
+            const matches = JSON.parse(stdout || "[]") as any[]
+            return { ok: true as const, f, matches }
+          } catch (e: any) {
+            // ast-grep exits non-zero for parse errors but may still produce
+            // valid JSON on stdout. Capture whatever came out.
+            const stdout = e?.stdout?.toString() ?? ""
+            const stderr = e?.stderr?.toString() ?? e?.message ?? String(e)
+            let matches: any[] = []
+            try {
+              matches = JSON.parse(stdout) as any[]
+              return { ok: true as const, f, matches, warn: stderr }
+            } catch {
+              return { ok: false as const, f, err: stderr }
+            }
+          }
+        }),
       )
-      stdout = result.stdout
-    } catch (e: any) {
-      // ast-grep exits with non-zero when no matches found; check stdout
-      if (e.stdout) {
-        stdout = e.stdout
-      } else {
-        return `Error: ast-grep failed: ${e.stderr?.toString() ?? e.message}`
+      for (const r of results) {
+        if (r.ok) {
+          allMatches.push(...r.matches)
+          if (r.warn) parseErrors.push(`${r.f.rel}: ${r.warn.split("\n")[0]}`)
+        } else {
+          parseErrors.push(`${r.f.rel}: ${r.err.split("\n")[0]}`)
+        }
+        if (allMatches.length >= max) {
+          truncated = true
+          break outer
+        }
       }
     }
 
-    let matches: any[]
-    try {
-      matches = JSON.parse(stdout || "[]")
-    } catch (e) {
-      return `Error: failed to parse ast-grep output: ${e instanceof Error ? e.message : String(e)}\nOutput: ${stdout.slice(0, 200)}`
-    }
-
-    if (matches.length === 0) {
-      return `codesearch: pattern="${args.pattern}" lang=${lang} path=${searchPath}\n  No matches.`
-    }
-
-    const truncated = matches.length > max
-    const shown = truncated ? matches.slice(0, max) : matches
-
+    // ── Step 3: format output ──
+    const shown = truncated ? allMatches.slice(0, max) : allMatches
     const lines: string[] = []
-    lines.push(`codesearch: pattern="${args.pattern}" lang=${lang} path=${searchPath}`)
-    lines.push(`  matches: ${matches.length}${truncated ? ` (showing first ${max})` : ""}`)
-    lines.push("")
+    lines.push(
+      `codesearch: pattern="${args.pattern}" lang=${lang} path=${searchPath}`,
+    )
+    lines.push(
+      `  scanned: ${fileStats.length} ${lang} files (newest first)` +
+        (truncated ? `, hit maxResults=${max} early` : ""),
+    )
+    lines.push(
+      `  matches: ${allMatches.length}${truncated ? ` (showing first ${max})` : ""}`,
+    )
 
-    for (const m of shown) {
-      const r = m.range?.start ?? { line: 0, column: 0 }
-      const file = m.file ? path.relative(searchPath, m.file) : "?"
-      lines.push(formatMatch(file, r.line + 1, r.column + 1, m.text ?? ""))
+    if (allMatches.length === 0) {
+      lines.push("")
+      lines.push("  No matches.")
+    } else {
+      lines.push("")
+      for (const m of shown) {
+        const r = m.range?.start ?? { line: 0, column: 0 }
+        const file = m.file ? path.relative(searchPath, m.file) : "?"
+        lines.push(formatMatch(file, r.line + 1, r.column + 1, m.text ?? ""))
+      }
+    }
+
+    // Always show error log if any — completeness signal (mimo grep.ts:131 style).
+    if (parseErrors.length > 0) {
+      lines.push("")
+      lines.push(`Files skipped (${parseErrors.length}):`)
+      for (const e of parseErrors.slice(0, 5)) lines.push(`  ${e}`)
+      if (parseErrors.length > 5) lines.push(`  ... and ${parseErrors.length - 5} more`)
     }
     return lines.join("\n")
   },
