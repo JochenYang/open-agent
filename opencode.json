@@ -87,11 +87,6 @@
       "permission": {
         "external_directory": "allow"
       }
-    },
-    "forge": {
-      "permission": {
-        "external_directory": "allow"
-      }
     }
   },
   "plugin": [
