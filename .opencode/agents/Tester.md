@@ -9,6 +9,7 @@ tools:
 permission:
   edit: allow
   webfetch: deny
+  task: deny
 ---
 
 默认使用中文回复。

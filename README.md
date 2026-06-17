@@ -5,9 +5,6 @@
 ### 基于 OpenCode 的 Forge 多代理工程系统
 
 <p>
-  <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/JochenYang/open-agent?style=flat-square&color=2563EB&labelColor=1E293B"></a>
-  <a href="https://github.com/JochenYang/open-agent/stargazers"><img alt="Stars" src="https://img.shields.io/github/stars/JochenYang/open-agent?style=flat-square&color=F59E0B&labelColor=1E293B&logo=github"></a>
-  <a href="https://github.com/JochenYang/open-agent/commits/main"><img alt="Last Commit" src="https://img.shields.io/github/last-commit/JochenYang/open-agent?style=flat-square&color=10B981&labelColor=1E293B&logo=git&logoColor=white"></a>
   <a href="https://github.com/anomalyco/opencode"><img alt="OpenCode" src="https://img.shields.io/badge/OpenCode-Compatible-EC4899?style=flat-square&labelColor=1E293B"></a>
   <a href=".opencode/agents/Forge.md"><img alt="Forge" src="https://img.shields.io/badge/Forge-Powered-B91C1C?style=flat-square&labelColor=1E293B"></a>
 </p>
@@ -87,7 +84,7 @@ graph TB
 
     User --> FG & BD
     FG -->|skill tool| Skills
-    FG -->|task + dispatcher| Subagents
+    FG -->|task tool (parallel fan-out)| Subagents
     Skills -.->|工作流编排| Subagents
 
     FG --- Infra
@@ -115,7 +112,7 @@ graph TB
 | 探索   | `brainstorm` | 任何需要创意/方案的工作前先跑，输出可签字的 spec             |
 | 探索   | `ask`        | 决策、澄清、审批的统一入口；无人值守时自动决策                 |
 | 规划   | `plan`       | 把 spec 拆成多步任务，写成可执行 plan                        |
-| 执行   | `subagent`   | 通过 `dispatcher` + `task` 派发独立 subagent，强制两阶段评审 |
+| 执行   | `subagent`   | 通过 `task` 派发独立 subagent，独立任务同一响应并行发出，强制两阶段评审 |
 | 执行   | `execute`    | 在新 session 中执行已写好的 plan，带 review checkpoint       |
 | 执行   | `tdd`        | 强制 RED-GREEN-REFACTOR-VERIFY，禁止跳测试                   |
 | 执行   | `parallel`   | 2+ 个互不依赖任务的并行调度模板                             |
@@ -163,7 +160,7 @@ graph TB
 
 | Plugin                                 | 作用                                                              |
 |----------------------------------------|-------------------------------------------------------------------|
-| **`forge-plugin.js`**                  | 注入 Forge 体系运行时（`punchcard` / `forge_check` / `dispatcher`） |
+| **`forge-plugin.js`**                  | 注入 Forge 体系运行时（`punchcard` / `forge_check` / `forge-skill`） |
 | **`notification-plugin.js`**           | 长任务 / mission 完成时本地通知                                   |
 | **`opencode-mission.js`**              | Mission 自治模式：下达带 turn/token/wallclock 预算的长任务         |
 | **`vision-helper.ts`**                 | `vision` 工具的运行时支持                                         |

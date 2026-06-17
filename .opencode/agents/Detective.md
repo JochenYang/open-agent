@@ -10,6 +10,7 @@ permission:
   edit: deny
   bash: deny
   webfetch: allow
+  task: deny
 ---
 
 默认使用中文回复。

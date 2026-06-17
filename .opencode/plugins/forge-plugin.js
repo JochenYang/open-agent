@@ -5,9 +5,13 @@
 // 1. The previous memory plugin was deleted due to instability issues.
 // 2. We need a thin set of tools that fit forge's actual workflow:
 //    - punchcard:   T1/T1.1 work-item tracking (replaces memory plugin's `task` tool)
-//    - dispatcher:  explicit pre-flight for subagent dispatch (avoids name confusion with
-//                   the upstream `task` tool — model must call dispatcher first, then `task`)
 //    - forge_check: lightweight stage checkpoints (no FTS5, no auto-dream)
+//
+// Subagent dispatch is handled directly by the upstream `task` tool.
+// Previously we had a `dispatcher` pre-flight validator, but it created a
+// two-step pattern (dispatcher → task) that the LLM often simulated without
+// emitting the real `task` call. Now we use `task` directly in a single
+// tool_use, matching opencode's native behavior.
 //
 // Storage layout (all under ~/.config/opencode/forge/):
 //   punchcard/<sessionId>/<TID>/progress.md   — frontmatter + body, one file per work-item
@@ -303,72 +307,6 @@ const punchcardTool = {
   },
 }
 
-// === dispatcher: explicit pre-flight for subagent dispatch ===
-
-const dispatcherTool = {
-  description:
-    "Pre-flight validator for subagent dispatch. Call this BEFORE the upstream `task` tool to make your dispatch intent explicit (avoids the model hesitating on the bare `task` name). Returns validated arguments and the exact call syntax for the upstream `task` tool — the actual dispatch happens when you subsequently call `task` with those args. Use `subagent_type: \"general\"` for forge subagents (implementer / spec reviewer / code quality reviewer).",
-  args: {
-    subagent_type: {
-      type: "string",
-      description: "Subagent type to dispatch (e.g., 'general' for forge subagents).",
-    },
-    description: {
-      type: "string",
-      description: "3-5 word summary of what the subagent will do.",
-    },
-    prompt: {
-      type: "string",
-      description: "Full prompt for the subagent — must be self-contained (subagent sees nothing else).",
-    },
-    task_id: {
-      type: "string",
-      description: "Existing session id to RESUME a prior subagent (optional, only for continuation).",
-    },
-    background: {
-      type: "boolean",
-      description: "If true, subagent runs in background and returns actor_id immediately.",
-    },
-  },
-  execute: async (args, ctx) => {
-    const errors = []
-    if (!args.subagent_type || typeof args.subagent_type !== "string") {
-      errors.push("subagent_type: required string (e.g., 'general')")
-    }
-    if (!args.description || typeof args.description !== "string") {
-      errors.push("description: required string (3-5 words)")
-    } else if (args.description.length > 80) {
-      errors.push(`description: too long (${args.description.length} chars, max 80)`)
-    }
-    if (!args.prompt || typeof args.prompt !== "string") {
-      errors.push("prompt: required string (must be self-contained)")
-    } else if (args.prompt.length < 20) {
-      errors.push(`prompt: too short (${args.prompt.length} chars) — subagent needs at least scaffolding + intent`)
-    }
-    if (errors.length > 0) {
-      return `dispatcher: validation failed:\n  - ${errors.join("\n  - ")}\n\nFix and retry.`
-    }
-
-    const callLines = [
-      `  description: ${JSON.stringify(args.description)}`,
-      `  prompt: ${JSON.stringify(args.prompt).slice(0, 120)}${args.prompt.length > 120 ? "..." : ""}`,
-      `  subagent_type: ${JSON.stringify(args.subagent_type)}`,
-    ]
-    if (args.task_id) callLines.push(`  task_id: ${JSON.stringify(args.task_id)}`)
-    if (args.background) callLines.push(`  background: true`)
-
-    return [
-      "✓ dispatcher: validated. Now call the upstream `task` tool with these args:",
-      "",
-      "task(",
-      ...callLines.map((l) => `  ${l}`),
-      ")",
-      "",
-      "After `task` returns, the subagent's output is wrapped in <task> tags. Continue with your workflow (e.g., spec review per forge:subagent).",
-    ].join("\n")
-  },
-}
-
 // === forge_check: lightweight stage checkpoints ===
 
 const CHECK_OPS = ["create", "list", "get", "latest"]
@@ -598,7 +536,6 @@ const plugin = {
     tool: {
       "forge-skill": forgeSkillTool,
       punchcard: punchcardTool,
-      dispatcher: dispatcherTool,
       "forge-check": forgeCheckTool,
     },
   }),

@@ -16,7 +16,7 @@ When a skill clearly matches your task, you MUST invoke it.
 
 ## Subagent Dispatch is Mandatory When
 
-**Skip-to-implementation is DENIED** for non-trivial work. You MUST dispatch via `forge:subagent` (using `dispatcher` + the upstream `task` tool) when ANY of the following is true:
+**Skip-to-implementation is DENIED** for non-trivial work. You MUST dispatch via `forge:subagent` (using the upstream `task` tool) when ANY of the following is true:
 
 - Touches 2+ files
 - Adds new files (not just edits)
@@ -32,7 +32,7 @@ For trivial single-file edits (typo, config tweak, one-liner, < 30 line diff), d
 1. **Brainstorm** if there's any design ambiguity: invoke `forge:brainstorm`, write a spec, get user approval.
 2. **Plan** if the work has multiple tasks: invoke `forge:plan`, break into bite-sized tasks.
 3. **Track** each task with `punchcard` (operation=create, summary=...) → captures TID.
-4. **Dispatch** via `dispatcher` tool (validates intent, returns call syntax) → then call upstream `task` tool with the validated args (`subagent_type: "general"`, plus the full prompt).
+4. **Dispatch** via the upstream `task` tool (`subagent_type: "general"`, full self-contained prompt). For independent tasks, emit N `task` tool_uses in the **same response** — the AI SDK runs them concurrently.
 5. **Review** with the two-stage spec review (per `forge:subagent` skill).
 6. **Mark done** with `punchcard` (operation=done, id=TID).
 7. **Checkpoint** with `forge_check` at major milestones (plan-complete, all-tasks-done, merge-ready).
@@ -43,9 +43,8 @@ For trivial single-file edits (typo, config tweak, one-liner, < 30 line diff), d
 | ------------------- | --------------------------------------------------------------- |
 | `skill`               | Load a skill by name (forge:brainstorm, forge:plan, etc.)         |
 | `question`            | Drive the `forge:ask` skill (decisions, clarifications, approvals)  |
-| `task`                | **Spawn subagents** (upstream-native dispatcher) — always preceded by `dispatcher` validation |
+| `task`                | **Spawn subagents** — opencode-native; emit N in one response for true concurrency |
 | `punchcard`           | **Track T1/T1.1 work-items** (create/start/done/abandon)         |
-| `dispatcher`          | **Pre-flight validator** for subagent dispatch — returns the call syntax to use with `task` |
 | `forge_check`         | **Stage checkpoint** (plan-complete, task-X-done, merge-ready)  |
 | `bash` / `write` / `read` | Implementation tools — use ONLY for trivial direct work        |
 
@@ -53,7 +52,29 @@ For trivial single-file edits (typo, config tweak, one-liner, < 30 line diff), d
 
 - `task` = spawn a subagent. NEVER use for work-item tracking.
 - `punchcard` = track T1/T1.1 work-items. NEVER use for subagent dispatch.
-- `dispatcher` = validate subagent intent and return the `task` tool call syntax. NEVER skip it before `task`.
+
+## Parallel Subagent Dispatch
+
+When you have N independent sub-tasks (no shared target files, no shared write dependency), emit N `task` tool_uses in a **single response**. The AI SDK's `streamText` runs them concurrently — true parallelism, not sequential.
+
+**When to fan out:**
+- Each task has clearly independent scope (different files / different concerns)
+- No two tasks write to the same file or DB table
+- You do not need task A's output to start task B
+
+**When NOT to fan out:**
+- Tasks share a target file → serialize
+- Tasks form a chain (B depends on A's output) → serialize
+- Migration/Review loop → serialize (per `forge:subagent`)
+
+**Anti-pattern:** Calling `task(...)` in N separate turns/responses. That serializes them and burns your turn budget for no reason. Fan out in one response.
+
+## Doom Loop Self-Check
+
+opencode's native `doom_loop` guard fires `permission.ask` after 3 identical consecutive tool calls (same tool + same input). Mirror that discipline in your reasoning:
+
+- If you find yourself about to repeat the same `task` call (same `subagent_type` + same prompt) for the 3rd time, **stop**. Either: (a) re-read the previous result — you may have missed the answer, (b) escalate to the user, (c) change strategy.
+- A "validated" message from any pre-flight tool is NOT a result. Only an actual `<task_result>...</task_result>` is a result.
 
 ## Brainstorm Scope Check (KEEP NARROW)
 
@@ -164,4 +185,4 @@ Instructions say WHAT, not HOW. "Add X" or "Fix Y" doesn't mean skip workflows.
 
 The `<available_skills>` block (standard opencode behavior) lists all skills — including the 15 forge skills. All forge skills are visible and invokable by name via the skill tool.
 
-**Subagents and skills:** Subagents do NOT inherit your `available_skills` list. When dispatching a subagent via `dispatcher` + `task`, you must explicitly include the relevant forge skill instructions in the subagent's prompt (e.g., "follow the forge:tdd skill for this task, located at <location>"). The subagent will then invoke it by name.
+**Subagents and skills:** Subagents do NOT inherit your `available_skills` list. When dispatching a subagent via `task`, you must explicitly include the relevant forge skill instructions in the subagent's prompt (e.g., "follow the forge:tdd skill for this task, located at <location>"). The subagent will then invoke it by name.

@@ -104,7 +104,7 @@ implementer prompt's `## Intent (from spec)` block (see `./implementer-prompt.md
 The implementer never reads the spec itself — you hand it exactly the sections its
 task covers, with the scope boundary intact.
 
-Then dispatch via the `task` tool (opencode-native subagent dispatcher):
+Then dispatch via the `task` tool (opencode-native subagent spawn):
 
 ```
 task(

@@ -9,6 +9,7 @@ tools:
 permission:
   edit: allow
   webfetch: allow
+  task: deny
   bash:
     "docker push*": ask
     "kubectl apply*": ask
