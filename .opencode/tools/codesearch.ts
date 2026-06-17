@@ -34,9 +34,6 @@ const LANG_ALIASES: Record<string, string> = {
   json: "json",
   yaml: "yaml",
   yml: "yaml",
-  toml: "toml",
-  vue: "vue",
-  svelte: "svelte",
   swift: "swift",
   kotlin: "kotlin",
   scala: "scala",
@@ -47,7 +44,6 @@ const LANG_ALIASES: Record<string, string> = {
   elixir: "elixir",
   haskell: "haskell",
   hs: "haskell",
-  ocaml: "ocaml",
 }
 
 // ── Locate ast-grep binary ──
@@ -132,9 +128,12 @@ Pattern syntax:
 Output: file:line:col per match, with the matched snippet.
 Default caps at 50 results per call; raise maxResults if you need more.
 
-Supported languages (25+): typescript, tsx, javascript, jsx, python, rust,
-go, java, c, cpp, csharp, css, html, bash, json, yaml, toml, vue, svelte,
+Supported languages (20+): typescript, tsx, javascript, jsx, python, rust,
+go, java, c, cpp, csharp, css, html, bash, json, yaml, toml, svelte,
 swift, kotlin, scala, ruby, php, lua, elixir, haskell, ocaml.
+
+NOTE: vue and similar single-file-component languages are NOT supported by
+ast-grep. Use ripgrep (text) or the upstream explore agent for those.
 
 Requires ast-grep binary on PATH (no npm install needed).`,
 

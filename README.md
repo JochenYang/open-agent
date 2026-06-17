@@ -156,7 +156,7 @@ graph TB
 | **`schema-diff`**     | git ref 间的类型契约语义对比，区分 BREAKING / SAFE / WARNING | TS/JS · Python · Go · C# · Rust       |
 | **`git-conventions`** | 提交信息与分支命名规范校验，返回完整规约文档                 | —                                     |
 | **`vision`**          | 调用外部视觉模型识别本地图像                                | 兼容 OpenAI / MiniMax                 |
-| **`codesearch`**      | 基于 ast-grep 的 AST 结构化代码搜索（class $NAME / async function $F 等） | TS/JS · Py · Rust · Go · Java · C/C++ · C# · CSS · HTML |
+| **`codesearch`**      | 基于 ast-grep 的 AST 结构化代码搜索（class $NAME / async function $F 等） | TS/JS · Py · Rust · Go · Java · C/C++ · C# · CSS · HTML · 20+ 种 |
 
 ### Plugin（`.opencode/plugins/`）
 
