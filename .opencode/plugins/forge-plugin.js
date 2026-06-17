@@ -340,7 +340,7 @@ function listChecks(project, sid) {
 
 const forgeCheckTool = {
   description:
-    "Lightweight stage checkpoint. Snapshots a milestone in the current session (e.g., 'plan-complete', 'task-1-done'). Persists to ~/.config/opencode/forge/checks/. Use this to record progress so a resumed session can pick up where it left off — replaces the heavyweight checkpoint-writer and memory system of mimo-code's compose primary.",
+    "Lightweight stage checkpoint. Snapshots a milestone in the current session (e.g., 'plan-complete', 'task-1-done'). Persists to ~/.config/opencode/forge/checks/. Use this to record progress so a resumed session can pick up where it left off — replaces the heavyweight checkpoint-writer and memory system of the mimo-code fork.",
   args: {
     operation: {
       type: "string",
