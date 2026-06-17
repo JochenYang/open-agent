@@ -1,5 +1,5 @@
 // @bun
-// Forge plugin — minimal tools for the Forge (compose-mode) workflow.
+// Forge plugin — minimal tools for the Forge primary agent workflow.
 //
 // Why this exists:
 // 1. The previous memory plugin was deleted due to instability issues.
@@ -340,7 +340,7 @@ function listChecks(project, sid) {
 
 const forgeCheckTool = {
   description:
-    "Lightweight stage checkpoint. Snapshots a milestone in the current session (e.g., 'plan-complete', 'task-1-done'). Persists to ~/.config/opencode/forge/checks/. Use this to record progress so a resumed session can pick up where it left off — replaces the heavyweight checkpoint-writer + memory system of compose mode.",
+    "Lightweight stage checkpoint. Snapshots a milestone in the current session (e.g., 'plan-complete', 'task-1-done'). Persists to ~/.config/opencode/forge/checks/. Use this to record progress so a resumed session can pick up where it left off — replaces the heavyweight checkpoint-writer and memory system of mimo-code's compose primary.",
   args: {
     operation: {
       type: "string",

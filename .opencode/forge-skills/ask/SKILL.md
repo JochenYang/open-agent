@@ -55,4 +55,4 @@ Autonomous resolution applies **only to the current question**. Do **not** infer
 
 ## Why this skill exists
 
-This is the single source of truth for asking and autonomous fallback. Other compose skills reference it at their decision points instead of repeating fallback text, so the rules stay consistent and the prompts stay small.
+This is the single source of truth for asking and autonomous fallback. Other forge skills reference it at their decision points instead of repeating fallback text, so the rules stay consistent and the prompts stay small.

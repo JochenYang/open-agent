@@ -86,7 +86,7 @@ Follow this priority order. Explicit user preference always beats observed files
 3. **Check for an existing global directory:**
    ```bash
    project=$(basename "$(git rev-parse --show-toplevel)")
-   ls -d ~/.config/compose/worktrees/$project 2>/dev/null
+   ls -d ~/.config/opencode/forge/worktrees/$project 2>/dev/null
    ```
    If found, use it (backward compatibility with legacy global path).
 
@@ -104,7 +104,7 @@ git check-ignore -q .worktrees 2>/dev/null || git check-ignore -q worktrees 2>/d
 
 **Why critical:** Prevents accidentally committing worktree contents to repository.
 
-Global directories (`~/.config/compose/worktrees/`) need no verification.
+Global directories (`~/.config/opencode/forge/worktrees/`) need no verification.
 
 #### Create the Worktree
 
@@ -113,7 +113,7 @@ project=$(basename "$(git rev-parse --show-toplevel)")
 
 # Determine path based on chosen location
 # For project-local: path="$LOCATION/$BRANCH_NAME"
-# For global: path="~/.config/compose/worktrees/$project/$BRANCH_NAME"
+# For global: path="~/.config/opencode/forge/worktrees/$project/$BRANCH_NAME"
 
 git worktree add "$path" -b "$BRANCH_NAME"
 cd "$path"

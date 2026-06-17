@@ -203,7 +203,7 @@ task(
 ```
 You: I'm using Subagent-Driven Development to execute this plan.
 
-[Read plan file once: docs/compose/plans/feature-plan.md]
+[Read plan file once: docs/forge/plans/feature-plan.md]
 [Extract all 5 tasks with full text and context]
 
 Task 1: Hook installation script
@@ -214,7 +214,7 @@ Task 1: Hook installation script
 
 Implementer: "Before I begin - should the hook be installed at user or system level?"
 
-You: "User level (~/.config/compose/hooks/)"
+You: "User level (~/.config/opencode/forge/hooks/)"
 [Re-dispatch with the answer added to the prompt]
 
 Implementer:
