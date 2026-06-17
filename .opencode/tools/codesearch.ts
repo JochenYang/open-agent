@@ -51,26 +51,47 @@ const LANG_ALIASES: Record<string, string> = {
 }
 
 // ── Locate ast-grep binary ──
-function findAstGrep(): { cmd: string; args: string[] } | null {
-  // Prefer the @ast-grep/cli binary shipped with this project's node_modules
-  const localBin = path.join(process.cwd(), "node_modules", ".bin", process.platform === "win32" ? "ast-grep.cmd" : "ast-grep")
-  if (fs.existsSync(localBin)) {
-    return { cmd: localBin, args: [] }
+function findAstGrep(): string | null {
+  // Two install paths supported:
+  //
+  // 1. Local npm package (cwd-relative):
+  //      npm install @ast-grep/cli
+  //    Then the binary lives at <cwd>/node_modules/.bin/ast-grep(.cmd).
+  //    Works when running opencode from a directory where the user did the
+  //    install. Common pattern: install once in $HOME.
+  //
+  // 2. System binary on PATH:
+  //    - macOS:   brew install ast-grep
+  //    - Windows: winget install ast-grep   (or `cargo install ast-grep`)
+  //    - Linux:   cargo install ast-grep    (or distro package manager)
+  //    - manual:  https://github.com/ast-grep/ast-grep/releases
+  //
+  // We try the cwd-local path first (faster, no spawn), then fall back to
+  // system PATH lookup. This matches both the "npm install in home" workflow
+  // and the "system-wide install" workflow.
+
+  // 1. Try cwd-local node_modules/.bin
+  const localBin = path.join(
+    process.cwd(),
+    "node_modules",
+    ".bin",
+    process.platform === "win32" ? "ast-grep.cmd" : "ast-grep",
+  )
+  if (fs.existsSync(localBin)) return localBin
+
+  // 2. Try system PATH
+  const which = process.platform === "win32" ? "where" : "which"
+  try {
+    const result = require("child_process")
+      .execSync(`${which} ast-grep`, { stdio: "pipe" })
+      .toString()
+      .trim()
+      .split("\n")[0]
+    if (result) return result
+  } catch {
+    // not in PATH
   }
-  // Fall back to PATH
-  const candidates = process.platform === "win32" ? ["ast-grep.cmd", "ast-grep.exe", "ast-grep"] : ["ast-grep"]
-  for (const c of candidates) {
-    const which = process.platform === "win32" ? `where ${c}` : `which ${c}`
-    try {
-      // synchronous check; cheap
-      const result = require("child_process").execSync(which, { stdio: "pipe" }).toString().trim().split("\n")[0]
-      if (result && fs.existsSync(result)) {
-        return { cmd: result, args: [] }
-      }
-    } catch {
-      // not in PATH
-    }
-  }
+
   return null
 }
 
@@ -115,7 +136,7 @@ Supported languages (25+): typescript, tsx, javascript, jsx, python, rust,
 go, java, c, cpp, csharp, css, html, bash, json, yaml, toml, vue, svelte,
 swift, kotlin, scala, ruby, php, lua, elixir, haskell, ocaml.
 
-Requires @ast-grep/cli (installed via npm install).`,
+Requires ast-grep binary on PATH (no npm install needed).`,
 
   args: {
     pattern: tool.schema
@@ -156,7 +177,20 @@ Requires @ast-grep/cli (installed via npm install).`,
 
     const bin = findAstGrep()
     if (!bin) {
-      return `Error: ast-grep binary not found. Run \`cd .opencode && npm install\` to install @ast-grep/cli.`
+      return `Error: ast-grep not found.
+
+codesearch needs the ast-grep binary. Pick ONE install method:
+
+  (A) Local npm install (most common, install in cwd or $HOME):
+      cd <your-project-or-home> && npm install @ast-grep/cli
+
+  (B) System binary (recommended for cross-project reuse):
+      - macOS:   brew install ast-grep
+      - Windows: winget install ast-grep   (or \`cargo install ast-grep\`)
+      - Linux:   cargo install ast-grep    (or distro package manager)
+      - manual:  https://github.com/ast-grep/ast-grep/releases
+
+Search order: cwd-local \`node_modules/.bin/ast-grep\` first, then system PATH.`
     }
 
     const max = args.maxResults ?? 50
@@ -165,8 +199,8 @@ Requires @ast-grep/cli (installed via npm install).`,
     let stdout: string
     try {
       const result = await exec(
-        bin.cmd,
-        [...bin.args, "run", "--pattern", args.pattern, "--lang", lang, "--json=compact", searchPath],
+        bin,
+        ["run", "--pattern", args.pattern, "--lang", lang, "--json=compact", searchPath],
         { maxBuffer: 50 * 1024 * 1024, timeout: 60_000 },
       )
       stdout = result.stdout

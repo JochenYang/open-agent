@@ -232,21 +232,25 @@ cp -r .opencode/tools/*         "$TARGET/tools/"
 
 **2.5 安装 `codesearch` 工具的 ast-grep 依赖**
 
-`codesearch` 工具依赖 `@ast-grep/cli`（在 `.opencode/package.json` 中）。`.opencode/package.json` 在 `.gitignore` 内，所以 clone 后需要单独安装：
+`codesearch` 通过 `execFile` 调用 `ast-grep` 二进制，**不需要 npm 安装**。挑一个方式装 ast-grep 到本地或系统 PATH：
 
-Linux / macOS：
+**方式 A：本地 npm 安装（推荐快速试）**
+
+在**你常用的工作目录**（一般是 `$HOME`）跑一次即可——全局可见：
 
 ```bash
-cd .opencode && npm install
+cd ~  # 或 cd ~/.config/opencode
+npm install @ast-grep/cli
 ```
 
-Windows（PowerShell）：
+**方式 B：系统二进制（推荐跨项目长期使用）**
 
-```powershell
-Set-Location .opencode; npm install
-```
+- macOS:   `brew install ast-grep`
+- Windows: `winget install ast-grep`  或  `cargo install ast-grep`
+- Linux:   `cargo install ast-grep`  或  distro package manager
+- 手动:    <https://github.com/ast-grep/ast-grep/releases>
 
-不安装也不影响其他 5 个工具和 9 个 subagent 使用；只有 `Explore` subagent 的 AST 搜索会报错。
+查找顺序：先看 `cwd/node_modules/.bin/ast-grep`，再查系统 PATH。两个都装了就用第一个。
 
 Windows（PowerShell）：
 
