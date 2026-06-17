@@ -11,8 +11,8 @@
 
 <p>
   <img alt="Forge Skills" src="https://img.shields.io/badge/Forge_Skills-15-7C3AED?style=flat-square&labelColor=1E293B">
-  <img alt="Subagents" src="https://img.shields.io/badge/Subagents-8-0EA5E9?style=flat-square&labelColor=1E293B">
-  <img alt="Custom Tools" src="https://img.shields.io/badge/Custom_Tools-5-F97316?style=flat-square&labelColor=1E293B">
+  <img alt="Subagents" src="https://img.shields.io/badge/Subagents-9-0EA5E9?style=flat-square&labelColor=1E293B">
+  <img alt="Custom Tools" src="https://img.shields.io/badge/Custom_Tools-6-F97316?style=flat-square&labelColor=1E293B">
   <img alt="Plugins" src="https://img.shields.io/badge/Plugins-4-DC2626?style=flat-square&labelColor=1E293B">
   <img alt="MCP Servers" src="https://img.shields.io/badge/MCP_Servers-4-06B6D4?style=flat-square&labelColor=1E293B">
   <img alt="Rules" src="https://img.shields.io/badge/Rules-6-CA8A04?style=flat-square&labelColor=1E293B">
@@ -26,14 +26,14 @@
 
 ---
 
-**Open Agent** 是一套围绕 OpenCode 构建的工程化多代理体系。核心由 **Forge** 主代理统一编排 **15 个 Forge Skill** 完成 brainstorm → plan → execute → verify → review → merge 全流程，并按需调度 **8 个中文命名的专长 Subagent** 处理审查、调试、测试、数据库、性能、部署等领域工作；同时附带 **5 个自定义 TS 工具**、**4 个 Plugin**、**4 个 MCP 服务**与 **6 套规则文档**，让一台 OpenCode 即可拥有完整的"产品 → 工程 → 验证 → 交付"流水线。
+**Open Agent** 是一套围绕 OpenCode 构建的工程化多代理体系。核心由 **Forge** 主代理统一编排 **15 个 Forge Skill** 完成 brainstorm → plan → execute → verify → review → merge 全流程，并按需调度 **9 个中文命名的专长 Subagent** 处理审查、调试、测试、数据库、性能、部署等领域工作；同时附带 **6 个自定义 TS 工具**、**4 个 Plugin**、**4 个 MCP 服务**与 **6 套规则文档**，让一台 OpenCode 即可拥有完整的"产品 → 工程 → 验证 → 交付"流水线。
 
 ---
 
 ## 特性
 
 - **Skill 驱动编排** — Forge agent 不再硬编码工作流，而是按任务特征动态加载 15 个 Skill；新增工作流 = 加一份 SKILL.md
-- **专长子代理可调** — Reviewer / Guard / Tester / Detective / Builder / DBA / Perf / Ops 八个职责清晰的 subagent，覆盖审查、调试、TDD、实现、数据库、性能、部署
+- **专长子代理可调** — Reviewer / Guard / Tester / Detective / Builder / DBA / Perf / Ops / Explore 九个职责清晰的 subagent，覆盖审查、调试、TDD、实现、数据库、性能、部署、AST 代码搜索
 - **规格优先与两阶段评审** — 复杂任务先经 brainstorm 形成 spec，subagent 工作完毕后由 spec-reviewer + code-quality-reviewer 双轨复核
 - **证据优先与防侥幸** — `rules/evidence-first.md` 引入 L1–L4 证据分级，所有非显然结论强制标注证据等级与验证路径
 - **自带工程工具** — 内置 `dep-graph` / `dead-code` / `schema-diff` / `git-conventions` / `vision` 五大跨语言静态分析与协作工具
@@ -133,6 +133,7 @@ graph TB
 
 | Subagent      | 色相 | 读写 | 专长                                                        | 典型调用               |
 |---------------|------|------|-------------------------------------------------------------|------------------------|
+| **Explore**   | 青   | 只读 | AST 结构化代码搜索（基于 ast-grep），不分析只定位                | 派专长前的地形情报       |
 | **Reviewer**  | 堇   | 只读 | 代码审查（正确性 / 性能 / 并发 / 边界 / 可维护性 / 测试缺口） | 合并前质量门           |
 | **Guard**     | 赤   | 只读 | 安全专项（认证 / 授权 / 密钥 / PII / 支付 / 注入 / 访问控制） | 涉及 auth / 支付 / PII |
 | **Detective** | 橙   | 只读 | Bug 复现、根因定位、状态分叉追踪、最小修复建议                 | 排查报错、复现          |
@@ -155,6 +156,7 @@ graph TB
 | **`schema-diff`**     | git ref 间的类型契约语义对比，区分 BREAKING / SAFE / WARNING | TS/JS · Python · Go · C# · Rust       |
 | **`git-conventions`** | 提交信息与分支命名规范校验，返回完整规约文档                 | —                                     |
 | **`vision`**          | 调用外部视觉模型识别本地图像                                | 兼容 OpenAI / MiniMax                 |
+| **`codesearch`**      | 基于 ast-grep 的 AST 结构化代码搜索（class $NAME / async function $F 等） | TS/JS · Py · Rust · Go · Java · C/C++ · C# · CSS · HTML |
 
 ### Plugin（`.opencode/plugins/`）
 
@@ -227,6 +229,24 @@ cp -r .opencode/rules/*         "$TARGET/rules/"
 cp -r .opencode/themes/*        "$TARGET/themes/"
 cp -r .opencode/tools/*         "$TARGET/tools/"
 ```
+
+**2.5 安装 `codesearch` 工具的 ast-grep 依赖**
+
+`codesearch` 工具依赖 `@ast-grep/cli`（在 `.opencode/package.json` 中）。`.opencode/package.json` 在 `.gitignore` 内，所以 clone 后需要单独安装：
+
+Linux / macOS：
+
+```bash
+cd .opencode && npm install
+```
+
+Windows（PowerShell）：
+
+```powershell
+Set-Location .opencode; npm install
+```
+
+不安装也不影响其他 5 个工具和 9 个 subagent 使用；只有 `Explore` subagent 的 AST 搜索会报错。
 
 Windows（PowerShell）：
 
