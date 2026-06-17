@@ -163,6 +163,17 @@ function checkBodyQuality(msg: string): CheckResult {
     ;(longLines.length > 5 ? hardIssues : softIssues).push(detail)
   }
 
+  // 7. Body should be primarily bullets (fead286d reference style).
+  // All-prose with multiple lines => ERROR (force conversion).
+  // Prose-dominant => WARN.
+  const bulletLines = bodyLines.filter(l => l.startsWith("- ") || l.startsWith("* ")).length
+  const proseLines = bodyLines.filter(l => !l.startsWith("```") && !l.startsWith("- ") && !l.startsWith("* ")).length
+  if (bulletLines === 0 && proseLines >= 3) {
+    hardIssues.push(`body is all prose (${proseLines} lines, 0 bullets); convert each logical change to a bullet line (<verb> <short noun phrase>)`)
+  } else if (proseLines > bulletLines && proseLines > 2) {
+    softIssues.push(`body has ${proseLines} prose line(s) vs ${bulletLines} bullet(s); prefer bullet format per fead286d style`)
+  }
+
   if (hardIssues.length > 0) {
     return { status: "error", label: "Body", detail: [...hardIssues, ...softIssues].join("; ") }
   }
@@ -216,7 +227,9 @@ function buildGuide(files?: string[]): string {
     "[Body Rules]",
     "  - Blank line between subject and body",
     "  - Each line <= 72 chars",
-    "  - One bullet per logical change",
+    "  - Body MUST be primarily bullets; all-prose body is an ERROR",
+    "  - A short prose lead-in (<= 2 lines) is OK to explain context or BREAKING CHANGE",
+    "  - If prose lines > bullet lines (> 2 prose), it's a WARN: convert to bullets",
     "  - Bullet format: <verb> <short noun phrase>, no trailing punctuation",
     "  - Each bullet describes one logical change in plain prose",
     "  - Body <= 15 lines; split into multiple commits if longer",
