@@ -2,10 +2,6 @@
 description: 数据库与迁移实现。用于 schema、索引、迁移脚本、回填、数据完整性和回滚方案
 mode: subagent
 color: "#0891B2"
-tools:
-  write: true
-  edit: true
-  bash: true
 permission:
   edit: allow
   webfetch: allow

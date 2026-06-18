@@ -5,7 +5,7 @@
 // 1. The previous memory plugin was deleted due to instability issues.
 // 2. We need a thin set of tools that fit forge's actual workflow:
 //    - punchcard:   T1/T1.1 work-item tracking (replaces memory plugin's `task` tool)
-//    - forge_check: lightweight stage checkpoints (no FTS5, no auto-dream)
+//    - forge-check: lightweight stage checkpoints (no FTS5, no auto-dream)
 //
 // Subagent dispatch is handled directly by the upstream `task` tool.
 // Previously we had a `dispatcher` pre-flight validator, but it created a
@@ -23,6 +23,7 @@ import path from "path"
 import fs from "fs"
 import os from "os"
 import { createHash } from "crypto"
+import { tool } from "@opencode-ai/plugin"
 
 const FORGE_ROOT = path.join(os.homedir(), ".config", "opencode", "forge")
 
@@ -188,38 +189,22 @@ const PUNCHCARD_TRANSITIONS = {
   abandon: { from: ["done"], to: "abandoned", reverse: true },
 }
 
-const punchcardTool = {
+const punchcardTool = tool({
   description:
     "T1/T1.1 work-item tracking. Operations: create | list | get | start | block | unblock | done | abandon | rename. Persists to ~/.config/opencode/forge/punchcard/. Use this to track each plan task with an explicit TID that subagent dispatch can reference. NEVER confuse with the upstream `task` tool — `task` dispatches subagents, `punchcard` tracks local work-item state.",
   args: {
-    operation: {
-      type: "string",
-      description: "create | list | get | start | block | unblock | done | abandon | rename",
-    },
-    session_id: {
-      type: "string",
-      description: "Session id (defaults to current session)",
-    },
-    summary: {
-      type: "string",
-      description: "Task summary (required for create/rename)",
-    },
-    id: {
-      type: "string",
-      description: 'TID like T1, T1.1 — required for get/start/block/unblock/done/abandon/rename',
-    },
-    parent_id: {
-      type: "string",
-      description: "Parent TID for sub-tasks (optional, for create)",
-    },
-    body: {
-      type: "string",
-      description: "Initial body content (optional, for create)",
-    },
-    reason: {
-      type: "string",
-      description: "Reason / event summary (optional, for transitions)",
-    },
+    operation: tool.schema
+      .enum(PUNCHCARD_OPS)
+      .describe("create | list | get | start | block | unblock | done | abandon | rename"),
+    session_id: tool.schema.string().describe("Session id (defaults to current session)").optional(),
+    summary: tool.schema.string().describe("Task summary (required for create/rename)").optional(),
+    id: tool.schema
+      .string()
+      .describe("TID like T1, T1.1 — required for get/start/block/unblock/done/abandon/rename")
+      .optional(),
+    parent_id: tool.schema.string().describe("Parent TID for sub-tasks (optional, for create)").optional(),
+    body: tool.schema.string().describe("Initial body content (optional, for create)").optional(),
+    reason: tool.schema.string().describe("Reason / event summary (optional, for transitions)").optional(),
   },
   execute: async (args, ctx) => {
     const op = String(args.operation ?? "")
@@ -305,9 +290,9 @@ const punchcardTool = {
       return `punchcard.${op || "?"} error: ${e instanceof Error ? e.message : String(e)}`
     }
   },
-}
+})
 
-// === forge_check: lightweight stage checkpoints ===
+// === forge-check: lightweight stage checkpoints ===
 
 const CHECK_OPS = ["create", "list", "get", "latest"]
 
@@ -338,34 +323,19 @@ function listChecks(project, sid) {
   return out
 }
 
-const forgeCheckTool = {
+const forgeCheckTool = tool({
   description:
     "Lightweight stage checkpoint. Snapshots a milestone in the current session (e.g., 'plan-complete', 'task-1-done'). Persists to ~/.config/opencode/forge/checks/. Use this to record progress so a resumed session can pick up where it left off.",
   args: {
-    operation: {
-      type: "string",
-      description: "create | list | get | latest",
-    },
-    session_id: {
-      type: "string",
-      description: "Session id (defaults to current session)",
-    },
-    stage: {
-      type: "string",
-      description: "Stage name (slug, e.g., 'plan-complete', 'task-1-done', 'merge-ready')",
-    },
-    summary: {
-      type: "string",
-      description: "Short title for the checkpoint (used as H1)",
-    },
-    details: {
-      type: "string",
-      description: "Optional body content (markdown supported)",
-    },
-    file: {
-      type: "string",
-      description: "Checkpoint filename (for operation=get)",
-    },
+    operation: tool.schema.enum(CHECK_OPS).describe("create | list | get | latest"),
+    session_id: tool.schema.string().describe("Session id (defaults to current session)").optional(),
+    stage: tool.schema
+      .string()
+      .describe("Stage name (slug, e.g., 'plan-complete', 'task-1-done', 'merge-ready')")
+      .optional(),
+    summary: tool.schema.string().describe("Short title for the checkpoint (used as H1)").optional(),
+    details: tool.schema.string().describe("Optional body content (markdown supported)").optional(),
+    file: tool.schema.string().describe("Checkpoint filename (for operation=get)").optional(),
   },
   execute: async (args, ctx) => {
     const op = String(args.operation ?? "")
@@ -374,9 +344,9 @@ const forgeCheckTool = {
     try {
       if (op === "create") {
         const stage = String(args.stage ?? "").trim()
-        if (!stage) return "forge_check.create: stage is required (e.g., 'plan-complete')"
+        if (!stage) return "forge-check.create: stage is required (e.g., 'plan-complete')"
         if (!/^[a-z0-9][a-z0-9-]*$/.test(stage)) {
-          return `forge_check.create: stage must be kebab-case slug (got "${stage}")`
+          return `forge-check.create: stage must be kebab-case slug (got "${stage}")`
         }
         const summary = String(args.summary ?? stage).trim()
         const details = String(args.details ?? "")
@@ -415,20 +385,20 @@ const forgeCheckTool = {
       }
       if (op === "get") {
         const file = String(args.file ?? "")
-        if (!file) return "forge_check.get: file is required (e.g., '1700000000-plan-complete.md')"
+        if (!file) return "forge-check.get: file is required (e.g., '1700000000-plan-complete.md')"
         const full = path.join(checkDir(project, sid), file)
         const text = readText(full)
         if (!text) return `No checkpoint file: ${full}`
         return text + `\n\nFile: ${full}`
       }
-      return `forge_check: unknown operation "${op}". Available: ${CHECK_OPS.join(", ")}.`
+      return `forge-check: unknown operation "${op}". Available: ${CHECK_OPS.join(", ")}.`
     } catch (e) {
-      return `forge_check.${op || "?"} error: ${e instanceof Error ? e.message : String(e)}`
+      return `forge-check.${op || "?"} error: ${e instanceof Error ? e.message : String(e)}`
     }
   },
-}
+})
 
-// === forge_skill: explicit skill loader + subagent injector ===
+// === forge-skill: explicit skill loader + subagent injector ===
 //
 // Why this exists:
 // - The upstream `skill` tool loads SKILL.md content on demand, but the model
@@ -473,27 +443,26 @@ function findForgeSkill(name) {
   return undefined
 }
 
-const forgeSkillTool = {
+const forgeSkillTool = tool({
   description:
-    "MUST call this to load a forge skill's full SKILL.md content (not just the name from <available_skills>). Without this call, you only have the skill's description — NOT the workflow. Use mode='load' to load into your own context, or mode='inject' to get a formatted block ready to paste into a subagent prompt you dispatch via the `task` tool. NEVER confuse with the upstream `skill` tool — `skill` loads too, but `forge_skill` adds the inject-for-subagent capability and makes the loading action explicit/auditable.",
+    "MUST call this to load a forge skill's full SKILL.md content (not just the name from <available_skills>). Without this call, you only have the skill's description — NOT the workflow. Use mode='load' to load into your own context, or mode='inject' to get a formatted block ready to paste into a subagent prompt you dispatch via the `task` tool. NEVER confuse with the upstream `skill` tool — `skill` loads too, but `forge-skill` adds the inject-for-subagent capability and makes the loading action explicit/auditable.",
   args: {
-    name: {
-      type: "string",
-      description: "Skill name (e.g., 'forge:brainstorm', 'forge:subagent'). The part after the last ':' is used as the directory name to look up SKILL.md.",
-    },
-    mode: {
-      type: "string",
-      description: "'load' (default): return the SKILL.md content for your own context. 'inject': return a formatted block ready to paste into a subagent prompt.",
-    },
+    name: tool.schema
+      .string()
+      .describe("Skill name (e.g., 'forge:brainstorm', 'forge:subagent'). The part after the last ':' is used as the directory name to look up SKILL.md."),
+    mode: tool.schema
+      .enum(["load", "inject"])
+      .describe("'load' (default): return the SKILL.md content for your own context. 'inject': return a formatted block ready to paste into a subagent prompt.")
+      .optional(),
   },
   execute: async (args, ctx) => {
     const name = String(args.name ?? "").trim()
-    if (!name) return "forge_skill: name is required (e.g., 'forge:brainstorm')"
+    if (!name) return "forge-skill: name is required (e.g., 'forge:brainstorm')"
     const mode = String(args.mode ?? "load").trim()
 
     const file = findForgeSkill(name)
     if (!file) {
-      return `forge_skill: skill "${name}" not found.
+      return `forge-skill: skill "${name}" not found.
 
 Searched these locations for a SKILL.md:
 ${FORGE_SKILL_SEARCH_DIRS.map((d) => `  - ${d}/<skill-dir>/SKILL.md`).join("\n")}
@@ -507,28 +476,28 @@ Check:
     const content = fs.readFileSync(file, "utf-8")
 
     if (mode === "inject") {
-      return `<!-- forge_skill:${name} -->
+      return `<!-- forge-skill:${name} -->
 The following skill is available to you. You can invoke it by name using the \`skill\` tool, or read the SKILL.md content below directly. The orchestrator has already loaded this skill's content into your context.
 
 <skill name="${name}">
 ${content.trim()}
 </skill>
-<!-- /forge_skill:${name} -->
+<!-- /forge-skill:${name} -->
 
 USAGE: Paste the above block verbatim into the subagent's prompt before calling the \`task\` tool. The subagent will see this content as part of its instructions.`
     }
 
     // mode = "load" (default)
-    return `<forge_skill_loaded name="${name}">
+    return `<forge-skill-loaded name="${name}">
 ${content.trim()}
-</forge_skill_loaded>
+</forge-skill-loaded>
 
-✓ forge_skill: loaded "${name}" into your context.
+✓ forge-skill: loaded "${name}" into your context.
 File: ${file}
 
-Now follow the instructions in this skill. If dispatching a subagent that also needs this skill, call forge_skill(mode="inject", name="${name}") to get the inject block.`
+Now follow the instructions in this skill. If dispatching a subagent that also needs this skill, call forge-skill(mode="inject", name="${name}") to get the inject block.`
   },
-}
+})
 
 const plugin = {
   id: "forge-plugin",

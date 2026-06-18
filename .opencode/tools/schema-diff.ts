@@ -258,7 +258,7 @@ This goes beyond text diff — it understands type semantics. Use before merging
   args: {
     base: tool.schema.string().describe("Base ref (e.g. 'main', 'v1.0.0')").default("main"),
     head: tool.schema.string().describe("Head ref to compare").default("HEAD"),
-    paths: tool.schema.array(tool.schema.string()).describe("Type definition paths to check (globs supported)").default(["."]),
+    paths: tool.schema.array(tool.schema.string()).describe("Git pathspecs to check (for example '.', 'src', or 'packages/api')").default(["."]),
     filter: tool.schema.enum(["all", "breaking", "safe", "warning"]).describe("Filter changes by severity").default("all"),
     lang: tool.schema.array(tool.schema.string()).describe("Explicit language(s) to parse (auto-detected if omitted). Options: typescript, python, go, csharp, rust").optional(),
     workdir: tool.schema.string().describe("Git repository directory (auto-detected from ctx.directory if not specified)").optional(),

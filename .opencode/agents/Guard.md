@@ -2,10 +2,6 @@
 description: 安全专项审查。用于认证、授权、密钥、PII、支付、注入、访问控制和凭证泄露风险
 mode: subagent
 color: "#DC2626"
-tools:
-  write: false
-  edit: false
-  bash: false
 permission:
   edit: deny
   bash: deny

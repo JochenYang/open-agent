@@ -2,10 +2,6 @@
 description: Bug 复现与根因定位。用于分析报错、复现问题、追踪状态分叉并给出最小修复建议
 mode: subagent
 color: "#F97316"
-tools:
-  write: false
-  edit: false
-  bash: false
 permission:
   edit: deny
   bash: deny

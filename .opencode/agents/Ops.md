@@ -2,10 +2,6 @@
 description: 部署与基础设施实现。用于 CI/CD、Docker、Kubernetes、Terraform、监控、告警和回滚
 mode: subagent
 color: "#2563EB"
-tools:
-  write: true
-  edit: true
-  bash: true
 permission:
   edit: allow
   webfetch: allow

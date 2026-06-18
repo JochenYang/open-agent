@@ -2,10 +2,6 @@
 description: 代码审查与质量门。用于发现正确性、性能、并发、边界条件、可维护性和测试缺口
 mode: subagent
 color: "#8B5CF6"
-tools:
-  write: false
-  edit: false
-  bash: false
 permission:
   edit: deny
   bash: deny

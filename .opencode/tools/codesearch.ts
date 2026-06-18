@@ -1,6 +1,6 @@
 /// <reference path="../env.d.ts" />
 import { tool } from "@opencode-ai/plugin"
-import { execFile } from "child_process"
+import { execFile, execFileSync } from "child_process"
 import { promisify } from "util"
 import fs from "fs"
 import path from "path"
@@ -47,7 +47,7 @@ const LANG_ALIASES: Record<string, string> = {
 }
 
 // ── Locate ast-grep binary ──
-function findAstGrep(): string | null {
+function findAstGrep(projectDir: string): string | null {
   // Two install paths supported:
   //
   // 1. Local npm package (cwd-relative):
@@ -62,13 +62,13 @@ function findAstGrep(): string | null {
   //    - Linux:   cargo install ast-grep    (or distro package manager)
   //    - manual:  https://github.com/ast-grep/ast-grep/releases
   //
-  // We try the cwd-local path first (faster, no spawn), then fall back to
+  // We try the project-local path first (faster, no spawn), then fall back to
   // system PATH lookup. This matches both the "npm install in home" workflow
   // and the "system-wide install" workflow.
 
-  // 1. Try cwd-local node_modules/.bin
+  // 1. Try project-local node_modules/.bin
   const localBin = path.join(
-    process.cwd(),
+    projectDir,
     "node_modules",
     ".bin",
     process.platform === "win32" ? "ast-grep.cmd" : "ast-grep",
@@ -78,8 +78,7 @@ function findAstGrep(): string | null {
   // 2. Try system PATH
   const which = process.platform === "win32" ? "where" : "which"
   try {
-    const result = require("child_process")
-      .execSync(`${which} ast-grep`, { stdio: "pipe" })
+    const result = execFileSync(which, ["ast-grep"], { stdio: "pipe" })
       .toString()
       .trim()
       .split("\n")[0]
@@ -231,7 +230,7 @@ Requires ast-grep binary on PATH (no npm install needed).`,
       .optional(),
   },
 
-  async execute(args) {
+  async execute(args, ctx) {
     const lang = LANG_ALIASES[args.lang.toLowerCase()]
     if (!lang) {
       // Dedupe: show one name per native lang
@@ -242,12 +241,13 @@ Requires ast-grep binary on PATH (no npm install needed).`,
       return `Error: unsupported language "${args.lang}". Supported: ${canonical.join(", ")}.`
     }
 
-    const searchPath = path.resolve(args.path ?? process.cwd())
+    const projectDir = ctx.directory ?? ctx.worktree ?? process.cwd()
+    const searchPath = path.resolve(projectDir, args.path ?? ".")
     if (!fs.existsSync(searchPath)) {
       return `Error: path not found: ${searchPath}`
     }
 
-    const bin = findAstGrep()
+    const bin = findAstGrep(projectDir)
     if (!bin) {
       return `Error: ast-grep not found.
 
@@ -262,7 +262,7 @@ codesearch needs the ast-grep binary. Pick ONE install method:
       - Linux:   cargo install ast-grep    (or distro package manager)
       - manual:  https://github.com/ast-grep/ast-grep/releases
 
-Search order: cwd-local \`node_modules/.bin/ast-grep\` first, then system PATH.`
+Search order: project-local \`node_modules/.bin/ast-grep\` first, then system PATH.`
     }
 
     const max = args.maxResults ?? 50

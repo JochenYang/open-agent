@@ -1095,8 +1095,12 @@ function createChatMessageHook(deps) {
           scores: emptyScores("judge produced no parseable output")
         };
         await store.attachVerificationReport(parentID, failOpen);
-        await store.markComplete(parentID, failOpen);
-        debug(`judge failed to produce parseable output; failing open sessionID=${parentID}`);
+        const { capped } = await store.recordJudgeReactAttempt(parentID);
+        if (capped) {
+          debug(`judge failed repeatedly; mission auto-budget_limited sessionID=${parentID}`);
+        } else {
+          debug(`judge failed to produce parseable output; mission remains active sessionID=${parentID}`);
+        }
         return;
       }
       debug(`parsed verify report verdict=${report.verdict} sessionID=${input.sessionID}`);

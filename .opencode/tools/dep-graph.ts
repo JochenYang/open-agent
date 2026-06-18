@@ -46,6 +46,25 @@ interface Graph {
   reverse: Map<string, Set<string>>
 }
 
+const SKIP_DIRS = new Set([
+  "node_modules",
+  ".git",
+  "dist",
+  "build",
+  "coverage",
+  ".next",
+  ".nuxt",
+  ".turbo",
+  "out",
+  "target",
+  "vendor",
+])
+
+function isSkippedSourceFile(srcDir: string, filePath: string): boolean {
+  const parts = path.relative(srcDir, filePath).split(/[\\/]+/)
+  return parts.some((part) => SKIP_DIRS.has(part))
+}
+
 // ── Graph construction (using pluggable parsers) ──
 
 /**
@@ -77,6 +96,7 @@ async function buildGraph(srcDir: string, explicitLangs?: string[]): Promise<Gra
   const extPattern = extensions.join(",")
   const glob = new Bun.Glob(`**/*.{${extPattern}}`)
   const files = Array.from(glob.scanSync({ cwd: srcDir, absolute: true }))
+    .filter((filePath) => !isSkippedSourceFile(srcDir, filePath))
 
   for (const filePath of files) {
     const ext = filePath.split(".").pop()!.toLowerCase()

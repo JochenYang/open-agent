@@ -2,10 +2,6 @@
 description: 性能分析与优化方案。用于定位慢查询、N+1、CPU/内存热点、CWV、缓存和复杂度问题
 mode: subagent
 color: "#CA8A04"
-tools:
-  write: false
-  edit: false
-  bash: true
 permission:
   edit: deny
   bash: allow

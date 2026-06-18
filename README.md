@@ -36,8 +36,8 @@
 - **专长子代理可调** — Reviewer / Guard / Tester / Detective / Builder / DBA / Perf / Ops / Explore 九个职责清晰的 subagent，覆盖审查、调试、TDD、实现、数据库、性能、部署、AST 代码搜索
 - **规格优先与两阶段评审** — 复杂任务先经 brainstorm 形成 spec，subagent 工作完毕后由 spec-reviewer + code-quality-reviewer 双轨复核
 - **证据优先与防侥幸** — `rules/evidence-first.md` 引入 L1–L4 证据分级，所有非显然结论强制标注证据等级与验证路径
-- **自带工程工具** — 内置 `dep-graph` / `dead-code` / `schema-diff` / `git-conventions` / `vision` 五大跨语言静态分析与协作工具
-- **任务卡与里程碑** — `punchcard` 跟踪每条 T1/T1.1 任务，`forge_check` 记录 plan-complete / merge-ready 等阶段检查点
+- **自带工程工具** — 内置 `dep-graph` / `dead-code` / `schema-diff` / `git-conventions` / `vision` / `codesearch` 六大跨语言静态分析与协作工具
+- **任务卡与里程碑** — `punchcard` 跟踪每条 T1/T1.1 任务，`forge-check` 记录 plan-complete / merge-ready 等阶段检查点
 - **Mission 自治模式** — 通过 `opencode-mission` 插件可下达带预算的长任务，达成条件后由独立 verify 子代理裁定完成
 - **MCP 即插即用** — 默认接入 context7（库文档）、exa（联网检索）、interleaved-thinking（结构化推理）、time-mcp（时间换算）
 
@@ -162,7 +162,7 @@ graph TB
 
 | Plugin                                 | 作用                                                              |
 |----------------------------------------|-------------------------------------------------------------------|
-| **`forge-plugin.js`**                  | 注入 Forge 体系运行时（`punchcard` / `forge_check` / `forge-skill`） |
+| **`forge-plugin.js`**                  | 注入 Forge 体系运行时（`punchcard` / `forge-check` / `forge-skill`） |
 | **`notification-plugin.js`**           | 长任务 / mission 完成时本地通知                                   |
 | **`opencode-mission.js`**              | Mission 自治模式：下达带 turn/token/wallclock 预算的长任务         |
 | **`vision-helper.ts`**                 | `vision` 工具的运行时支持                                         |
@@ -368,7 +368,7 @@ open-agent/
     │   ├── Perf.md                #   subagent — 性能分析
     │   └── Ops.md                 #   subagent — 部署运维
     ├── forge-skills/            # 15 个 SKILL.md（ask/brainstorm/.../worktree）
-    ├── tools/                   # 5 个自定义 TS 工具 + parsers/（7 种语言）
+    ├── tools/                   # 6 个自定义 TS 工具 + parsers/（7 种语言）
     ├── plugins/                 # 4 个 plugin（forge / notification / mission / vision-helper）
     ├── rules/                   # 6 套规则（character / coding-standards / ...）
     ├── themes/                  # 4 套主题（mimo / minimax / mytheme / smoke）

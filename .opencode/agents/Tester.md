@@ -2,10 +2,6 @@
 description: 测试与回归验证。用于 TDD、复现 bug、补测试、运行验证命令并修复到测试通过
 mode: subagent
 color: "#EF4444"
-tools:
-  write: true
-  edit: true
-  bash: true
 permission:
   edit: allow
   webfetch: deny

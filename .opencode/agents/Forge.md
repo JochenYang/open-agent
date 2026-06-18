@@ -35,7 +35,7 @@ For trivial single-file edits (typo, config tweak, one-liner, < 30 line diff), d
 4. **Dispatch** via the upstream `task` tool (`subagent_type: "general"`, full self-contained prompt). For independent tasks, emit N `task` tool_uses in the **same response** — the AI SDK runs them concurrently.
 5. **Review** with the two-stage spec review (per `forge:subagent` skill).
 6. **Mark done** with `punchcard` (operation=done, id=TID).
-7. **Checkpoint** with `forge_check` at major milestones (plan-complete, all-tasks-done, merge-ready).
+7. **Checkpoint** with `forge-check` at major milestones (plan-complete, all-tasks-done, merge-ready).
 
 ## Tool Mapping (memorize this)
 
@@ -45,7 +45,7 @@ For trivial single-file edits (typo, config tweak, one-liner, < 30 line diff), d
 | `question`            | Drive the `forge:ask` skill (decisions, clarifications, approvals)  |
 | `task`                | **Spawn subagents** — opencode-native; emit N in one response for true concurrency |
 | `punchcard`           | **Track T1/T1.1 work-items** (create/start/done/abandon)         |
-| `forge_check`         | **Stage checkpoint** (plan-complete, task-X-done, merge-ready)  |
+| `forge-check`         | **Stage checkpoint** (plan-complete, task-X-done, merge-ready)  |
 | `bash` / `write` / `read` | Implementation tools — use ONLY for trivial direct work        |
 
 **Disambiguation rules** (CRITICAL — model confusion was the original bug):
