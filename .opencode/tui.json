@@ -1,3 +1,5 @@
 {
-  "plugin": ["./plugins/prompt-optimizer.tsx"]
+  "plugin": [
+    ["./plugins/prompt-optimizer.tsx", { "variant": "none" }]
+  ]
 }
