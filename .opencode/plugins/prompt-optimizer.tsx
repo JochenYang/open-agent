@@ -1,19 +1,8 @@
 /** @jsxImportSource @opentui/solid */
-/**
- * Prompt Optimizer TUI Plugin for OpenCode
- *
- * Renders a "✦" icon in the input prompt footer (home + session).
- * On click, runs a background LLM session to expand the user's brief
- * request into a directly-executable task specification.
- *
- * By default, inherits the primary agent's model — no configuration
- * needed. Power users can pin a model via `overrideModel` in tui.json.
- *
- * The `language` option drives both the LLM output language and the
- * toast messages. Default: "zh".
- */
-
 import { createSignal, Show } from "solid-js"
+import { existsSync, readFileSync, statSync } from "node:fs"
+import { execFileSync } from "node:child_process"
+import { join } from "node:path"
 import type { TuiPlugin, TuiPluginApi, TuiPluginModule, TuiPromptRef } from "@opencode-ai/plugin/tui"
 
 type ModelSpec = { providerID: string; modelID: string }
@@ -21,76 +10,191 @@ type Language = "en" | "zh"
 type LanguageSetting = Language | "auto"
 
 type PluginOptions = {
-  /** Force a specific model. Default: inherit from primary agent. */
   overrideModel?: ModelSpec
-  /** Model variant (e.g. "non-thinking"). Provider-specific. */
   variant?: string
-  /** UI + LLM output language. "auto" detects from input text. Default: "auto". */
   language?: LanguageSetting
-  /** Polling timeout per session (ms). Default: 90000. */
   timeoutMs?: number
-  /** Polling interval (ms). Default: 800. */
   pollIntervalMs?: number
+  includeContext?: boolean
 }
 
 const DEFAULT_TIMEOUT = 90_000
 const DEFAULT_POLL = 800
-const IDLE_ICON = "✧" // hollow four-pointed star
+const IDLE_ICON = "✧"
+const CONTEXT_TTL_MS = 5 * 60 * 1000
 
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
 
-// System prompt hints per language — drives the LLM's output language.
-// Toast strings are always English (single source of truth for UI).
-const LANG = {
-  en: {
-    hint: "Output the optimized prompt in English. No explanation, no preamble, no think tags.",
-  },
-  zh: {
-    hint: "用中文输出优化后的 prompt. 不要任何解释、前缀或 think 标签.",
-  },
-} as const satisfies Record<Language, { hint: string }>
+const LANG: Record<Language, { hint: string }> = {
+  en: { hint: "Output the optimized prompt in English. No explanation, no preamble, no think tags." },
+  zh: { hint: "用中文输出优化后的 prompt. 不要任何解释、前缀或 think 标签." },
+}
 
-// English-only UI strings.
 const TOAST = {
-  success: "Optimized",
+  success: "Optimized (review before sending)",
   failedTitle: "Optimization failed",
   emptyInput: "Input is empty, nothing to optimize",
-} as const
+}
 
-// Heuristic: any CJK Unified Ideograph means zh, otherwise en.
 const detectLanguage = (text: string): Language => /[\u4e00-\u9fff]/.test(text) ? "zh" : "en"
 
 const stripThinkBlocks = (s: string): string =>
   s
     .replace(/<think>[\s\S]*?<\/think>/gi, "")
     .replace(/<thinking>[\s\S]*?<\/thinking>/gi, "")
-    .replace(/<\|begin▁of▁thinking\|>[\s\S]*?<\|end▁of▁thinking\|>/gi, "")
+    .replace(/<\|begin鈻乷f鈻乼hinking\|>[\s\S]*?<\|end鈻乷f鈻乼hinking\|>/gi, "")
     .trim()
 
-const buildSystem = (lang: Language) => `You are a senior PM + full-stack engineer. Expand the user's brief request into a concise, directly-executable task spec.
+const STRONG_DOC_FILES = [
+  "AGENTS.md",
+  "CLAUDE.md",
+  "GEMINI.md",
+  ".cursorrules",
+  ".windsurfrules",
+  "CONVENTIONS.md",
+  "INSTRUCTIONS.md",
+  ".github/copilot-instructions.md",
+]
 
-Principles:
-1. Convert statement → imperative ("I want X" → "Please help me build X")
-2. Specify the sub-type
-3. Add 3-5 KEY industry-standard elements (NOT all possible — be concise)
-4. Add brief non-functional requirements
-5. One-line style/UX requirement
-6. Format: natural language + short list, no Markdown headings
-7. **Hard length limit: 300 words max**
-8. Keep user's original intent; do not invent roles
-9. Fill missing info with sensible defaults; do not ask back
-10. ${LANG[lang].hint}
+function readTextSafe(path: string, maxBytes: number): string | null {
+  try {
+    if (!existsSync(path)) return null
+    const stat = statSync(path)
+    if (!stat.isFile() || stat.size === 0) return null
+    const buf = readFileSync(path)
+    if (buf.length === 0) return null
+    return buf.subarray(0, maxBytes).toString("utf-8")
+  } catch {
+    return null
+  }
+}
 
-Template:
-"Please help me build [specific type] of [product]. It should include: [element 1], [element 2].... Non-functional: [brief]. Style: [brief]."
+function readGitStatus(cwd: string): { branch: string; modifiedFiles: string[] } | null {
+  try {
+    const branch = execFileSync(
+      "git",
+      ["rev-parse", "--abbrev-ref", "HEAD"],
+      { cwd, encoding: "utf-8", timeout: 2000, stdio: ["ignore", "pipe", "ignore"] },
+    ).trim()
 
-Forbidden:
-- "## Task / ## Goal" sections (that's plan mode, not prompt optimization)
-- "Please provide more info" reverse questions
-- "You are XX" role assignments
-- Enumerating every possible element (3-5 is enough)
+    const statusOut = execFileSync(
+      "git",
+      ["status", "--porcelain"],
+      { cwd, encoding: "utf-8", timeout: 2000, stdio: ["ignore", "pipe", "ignore"] },
+    )
 
-Output the spec text only.`
+    const modifiedFiles: string[] = []
+    for (const line of statusOut.split(/\r?\n/)) {
+      if (!line) continue
+      const path = line.slice(3).trim().split(" -> ").pop() ?? ""
+      if (path && !path.startsWith("node_modules/")) modifiedFiles.push(path)
+      if (modifiedFiles.length >= 12) break
+    }
+
+    return { branch, modifiedFiles }
+  } catch {
+    return null
+  }
+}
+
+type ProjectContext = {
+  name: string
+  description: string
+  stack: string
+  docs: string
+  git: string
+}
+
+function gatherProjectContext(cwd: string): ProjectContext | null {
+  const pkgRaw = readTextSafe(join(cwd, "package.json"), 1024)
+  if (!pkgRaw) return null
+
+  let name = ""
+  let description = ""
+  let stack = ""
+  try {
+    const pkg = JSON.parse(pkgRaw)
+    name = typeof pkg.name === "string" ? pkg.name : ""
+    description = typeof pkg.description === "string" ? pkg.description : ""
+    const depList: string[] = []
+    if (pkg.dependencies && typeof pkg.dependencies === "object") {
+      depList.push(...Object.keys(pkg.dependencies).slice(0, 8))
+    }
+    if (pkg.devDependencies && typeof pkg.devDependencies === "object") {
+      depList.push(...Object.keys(pkg.devDependencies).slice(0, 6))
+    }
+    stack = depList.filter(Boolean).join(", ")
+  } catch {
+    return null
+  }
+
+  let docs = ""
+  let budget = 2048
+  for (const file of STRONG_DOC_FILES) {
+    if (budget <= 0) break
+    const content = readTextSafe(join(cwd, file), Math.min(budget, 512))
+    if (content) {
+      const header = "[from: " + file + "]\n"
+      docs += "\n" + header + content + "\n"
+      budget -= content.length + header.length
+    }
+  }
+
+  let git = ""
+  const gitInfo = readGitStatus(cwd)
+  if (gitInfo) {
+    git = "\n[GIT STATE]\n"
+    git += "- Branch: " + gitInfo.branch + "\n"
+    if (gitInfo.modifiedFiles.length > 0) {
+      git += "- Modified:\n"
+      for (const f of gitInfo.modifiedFiles) {
+        git += "  - " + f + "\n"
+      }
+    }
+  }
+
+  return { name, description, stack, docs: docs.trim(), git: git.trim() }
+}
+
+const contextCache = new Map<string, { at: number; ctx: ProjectContext | null }>()
+
+function getCachedContext(cwd: string): ProjectContext | null {
+  const hit = contextCache.get(cwd)
+  if (hit && Date.now() - hit.at < CONTEXT_TTL_MS) return hit.ctx
+  const ctx = gatherProjectContext(cwd)
+  contextCache.set(cwd, { at: Date.now(), ctx })
+  return ctx
+}
+
+function buildSystem(lang: Language, project: ProjectContext | null, userInput: string): string {
+  const ctx = project
+    ? [
+        "[WORKSPACE]",
+        "- Project: " + project.name + (project.description ? " - " + project.description : ""),
+        "- Stack: " + (project.stack || "(unknown)"),
+        "- CWD: " + process.cwd(),
+        project.docs ? "\n[PROJECT CONVENTIONS]\n" + project.docs : "",
+        project.git ? "\n" + project.git : "",
+      ].join("\n")
+    : "[WORKSPACE: no project context (no package.json in cwd)]"
+
+  return (
+    "You are a project-aware prompt rewriter. Output is a DRAFT that the user will review and edit before sending to the main agent.\n\n" +
+    ctx + "\n\n" +
+    "[USER REQUEST]\n" + userInput + "\n\n" +
+    "[YOUR JOB]\n" +
+    "Rewrite the user's rough request into a clear, directly-executable engineering prompt that:\n" +
+    "1. References specific files (path:line) when relevant to the request\n" +
+    "2. Follows the project's existing tech stack and conventions (see [WORKSPACE])\n" +
+    "3. Lists the sub-tasks in execution order\n" +
+    "4. Includes non-functional requirements (tests, types, error handling, perf)\n" +
+    "5. Output is a DRAFT - keep it concise, do NOT over-engineer\n" +
+    "6. Hard length limit: 300 words max\n" +
+    "7. Format: natural language + short list, no Markdown headings\n" +
+    "8. " + LANG[lang].hint + "\n\n" +
+    "Start the prompt with: \"[DRAFT]\""
+  )
+}
 
 const tui: TuiPlugin = async (api: TuiPluginApi, options?: PluginOptions) => {
   const languageSetting: LanguageSetting = options?.language ?? "auto"
@@ -98,11 +202,13 @@ const tui: TuiPlugin = async (api: TuiPluginApi, options?: PluginOptions) => {
   const pollMs = options?.pollIntervalMs ?? DEFAULT_POLL
   const variant = options?.variant
   const overrideModel = options?.overrideModel
+  const includeContext = options?.includeContext ?? true
 
   console.error("[prompt-optimizer] plugin loaded", {
     language: languageSetting,
     model: overrideModel ?? "(inherit)",
     variant: variant ?? "(none)",
+    includeContext,
   })
 
   let homeCaptured: TuiPromptRef | undefined
@@ -117,18 +223,25 @@ const tui: TuiPlugin = async (api: TuiPluginApi, options?: PluginOptions) => {
       return
     }
 
-    const language: Language =
-      languageSetting === "auto" ? detectLanguage(raw) : languageSetting
-    const system = buildSystem(language)
-    const userText = `${raw}\n\n（请直接输出优化后的 prompt, 不要任何解释、标题、think 块或前缀.）`
-
     setBusy(true)
     try {
+      const language: Language = languageSetting === "auto" ? detectLanguage(raw) : languageSetting
+      const project = includeContext ? getCachedContext(process.cwd()) : null
+      const system = buildSystem(language, project, raw)
+      const userText = raw + "\n\n（请直接输出优化后的 prompt, 不要任何解释、标记或格式说明）"
+
+      console.error("[prompt-optimizer] run", {
+        projectExists: project !== null,
+        docsBytes: project?.docs.length ?? 0,
+        gitBytes: project?.git.length ?? 0,
+      })
+
       const result = await tryOne(api, overrideModel, variant, system, userText, timeoutMs, pollMs)
+      const resultPart = { type: "text" as const, text: result }
       ref.set({
         input: result,
         mode: "normal",
-        parts: [{ type: "text", text: result }],
+        parts: [resultPart],
       })
       ref.focus()
       api.ui.toast({ variant: "success", message: TOAST.success })
@@ -240,17 +353,26 @@ async function tryOne(
   const sessionID = created.data?.id
   if (!sessionID) throw new Error("session.create returned no data")
 
-  await api.client.session.prompt({
+  const userPart: Record<string, unknown> = { type: "text", text: userText }
+  const promptBody: Record<string, unknown> = {
     sessionID,
-    ...(model ? { model: { providerID: model.providerID, modelID: model.modelID } } : {}),
-    ...(variant ? { variant } : {}),
     system,
-    parts: [{ type: "text", text: userText }],
-  })
+    parts: [userPart],
+  }
+  if (model) {
+    const modelSpec: Record<string, string> = {
+      providerID: model.providerID,
+      modelID: model.modelID,
+    }
+    promptBody["model"] = modelSpec
+  }
+  if (variant) promptBody["variant"] = variant
+
+  await api.client.session.prompt(promptBody as any)
 
   const optimized = await pollAssistantText(api, sessionID, timeoutMs, pollMs)
   if (!optimized) {
-    throw new Error(`${Math.round(timeoutMs / 1000)}s timeout`)
+    throw new Error(Math.round(timeoutMs / 1000) + "s timeout")
   }
   return optimized
 }
@@ -265,16 +387,13 @@ async function pollAssistantText(
 
   while (Date.now() < deadline) {
     const resp = await api.client.session.messages({ sessionID })
-    const messages = (resp.data ?? []) as Array<{
-      info: { role: "user" | "assistant"; time?: { completed?: number } }
-      parts: Array<{ type: string; text?: string }>
-    }>
+    const messages = (resp.data ?? []) as Array<any>
 
-    const assistant = messages.find((m) => m.info.role === "assistant")
-    if (assistant?.info.time?.completed) {
-      const text = assistant.parts
-        .filter((p): p is { type: "text"; text: string } => p.type === "text")
-        .map((p) => p.text)
+    const assistant = messages.find((m) => m?.info?.role === "assistant")
+    if (assistant?.info?.time?.completed) {
+      const text = (assistant.parts ?? [])
+        .filter((p: any) => p?.type === "text" && typeof p.text === "string")
+        .map((p: any) => p.text as string)
         .join("")
 
       const cleaned = stripThinkBlocks(text)
@@ -287,7 +406,7 @@ async function pollAssistantText(
   return undefined
 }
 
-const plugin: TuiPluginModule & { id: string } = {
+const plugin: TuiPluginModule = {
   id: "opencode-prompt-optimizer",
   tui,
 }
