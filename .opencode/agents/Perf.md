@@ -38,7 +38,7 @@ permission:
 - 前端：Lighthouse/PageSpeed Insights、Performance 面板火焰图、bundle 分析工具
 - 网络：浏览器 Network 瀑布图、curl -w 耗时分解
 
-注意：你负责分析和方案制定。实际代码实施和优化后对比测量由行者调度 @Builder 完成——那是另一个测量周期。
+注意：你负责分析和方案制定。实际代码实施和优化后对比测量由 @Builder 完成——那是另一个测量周期。
 
 优化流程：
 1. 建立基线：确定当前性能指标

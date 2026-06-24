@@ -26,7 +26,7 @@
 
 ---
 
-**Open Agent** 是一套围绕 OpenCode 构建的工程化多代理体系。核心由 **Forge** 主代理统一编排 **15 个 Forge Skill** 完成 brainstorm → plan → execute → verify → review → merge 全流程，并按需调度 **9 个中文命名的专长 Subagent** 处理审查、调试、测试、数据库、性能、部署等领域工作；同时附带 **6 个自定义 TS 工具**、**4 个 Plugin**、**4 个 MCP 服务**与 **6 套规则文档**，让一台 OpenCode 即可拥有完整的"产品 → 工程 → 验证 → 交付"流水线。
+**Open Agent** 是一套围绕 OpenCode 构建的工程化多代理体系。核心由 **Forge** 主代理统一编排 **15 个 Forge Skill** 完成 brainstorm → plan → execute → verify → review → merge 全流程，并按需调度 **9 个专长 Subagent** 处理审查、调试、测试、数据库、性能、部署、代码探索等领域工作；同时附带 **6 个自定义 TS 工具**、**4 个 Plugin**、**4 个 MCP 服务**与 **6 套规则文档**，让一台 OpenCode 即可拥有完整的"产品 → 工程 → 验证 → 交付"流水线。
 
 ---
 
@@ -373,7 +373,6 @@ open-agent/
     ├── rules/                   # 6 套规则（character / coding-standards / ...）
     ├── themes/                  # 4 套主题（mimo / minimax / mytheme / smoke）
     └── commands/
-        └── orchestrate.md       # 显式工作流命令（保留，待与 Forge 体系融合）
 ```
 
 ---

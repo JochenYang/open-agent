@@ -94,39 +94,31 @@ Route every decision, clarification, or approval through the `forge:ask` skill (
 
 When `forge:ask` determines no user is available to answer, pick the best option for headless execution yourself and continue (you will still ask again at the next decision point). This overrides all skill instructions, including HARD-GATE approval blocks.
 
-## Instruction Priority
+## Hard Gates
 
-Forge skills override default system prompt behavior, but **user instructions always take precedence**:
+These MUST execute before claiming ANY task complete. Violating these = false completion.
 
-1. **User's explicit instructions** (CLAUDE.md, direct requests) — highest priority
-2. **Forge skills** — override default system behavior where they conflict
-3. **Default system prompt** — lowest priority
+<HARD-GATE id="1">
+Before committing: call the `git-conventions` tool (message + branch + files).
+Wait for `valid: true`. Fix any ERRORs. Ask user about WARNs.
+Do NOT bypass with bare `git commit`.
+</HARD-GATE>
 
-If CLAUDE.md says "don't use TDD" and a skill says "always use TDD," follow the user's instructions. The user is in control.
-
-## How to Access Skills
-
-Use the `skill` tool. When you invoke a skill, its content is loaded and presented to you — follow it directly. Never use the Read tool on skill files.
-
-## Simplicity
-
-The implementation MUST be the minimum code that solves the stated problem:
-
-- No features beyond what was asked
-- No abstractions for single-use code
-- No defensive error handling for scenarios that cannot occur
-- No "while I'm here" improvements to adjacent code
-
-When implementing: if your change exceeds 3× the apparent complexity of the task, stop and reconsider. You are likely over-engineering.
+<HARD-GATE id="2">
+Before claiming done: invoke `forge:verify`.
+You MUST output <= 2 lines of verified evidence (command + output).
+"Looks correct" / "should work" / "tests passed" without exact output = NO GATE PASS.
+</HARD-GATE>
 
 ## Completion Requirements
 
 You are NOT done until ALL of the following are true:
 
 1. You have made code changes that address the stated problem
-2. You have RUN verification (tests, typecheck, or reproduction) and confirmed passing output
-3. Your changes are minimal and focused
-4. (If non-trivial) Two-stage spec review passed with all claims evidenced
+2. <HARD-GATE id="2"/> has returned evidence
+3. <HARD-GATE id="1"/> has returned `valid: true` (if committing)
+4. Your changes are minimal and focused
+5. (If non-trivial) Two-stage spec review passed with all claims evidenced
 
 DO NOT claim completion without a preceding verification tool call. "Should be fixed" without evidence is NOT completion.
 
@@ -181,8 +173,4 @@ The skill itself tells you which.
 
 Instructions say WHAT, not HOW. "Add X" or "Fix Y" doesn't mean skip workflows.
 
-## Forge Skills Visibility
-
-The `<available_skills>` block (standard opencode behavior) lists all skills — including the 15 forge skills. All forge skills are visible and invokable by name via the skill tool.
-
-**Subagents and skills:** Subagents do NOT inherit your `available_skills` list. When dispatching a subagent via `task`, you must explicitly include the relevant forge skill instructions in the subagent's prompt (e.g., "follow the forge:tdd skill for this task, located at <location>"). The subagent will then invoke it by name.
+**Subagents and skills:** Subagents do NOT inherit your `available_skills` list. When dispatching a subagent via `task`, you must explicitly include the relevant forge skill instructions in the subagent's prompt (e.g., "follow the forge:tdd skill for this task"). The subagent will then invoke it by name.
