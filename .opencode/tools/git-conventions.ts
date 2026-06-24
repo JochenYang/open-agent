@@ -1,4 +1,3 @@
-/// <reference path="../env.d.ts" />
 import { tool } from "@opencode-ai/plugin"
 
 // ── Constants ─────────────────────────────────

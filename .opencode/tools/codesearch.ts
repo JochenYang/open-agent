@@ -1,4 +1,3 @@
-/// <reference path="../env.d.ts" />
 import { tool } from "@opencode-ai/plugin"
 import { execFile, execFileSync } from "child_process"
 import { promisify } from "util"
