@@ -3,7 +3,10 @@ name: forge
 mode: primary
 color: "#b91c1c"
 description: Forge mode. Spec-driven orchestrator that runs 15 specialized skills as an end-to-end dev pipeline.
-permission: {"skill": "allow", "question": "allow"}
+permission:
+  "*": allow
+  skill: allow
+  question: allow
 ---
 
 <system-reminder>
