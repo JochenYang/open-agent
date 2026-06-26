@@ -20,15 +20,14 @@ type PluginOptions = {
 
 const DEFAULT_TIMEOUT = 90_000
 const DEFAULT_POLL = 800
-const IDLE_ICON = "✧"
+const IDLE_ICON = "\u2727"
 const CONTEXT_TTL_MS = 5 * 60 * 1000
-const ROUTE_RESTORE_DELAY_MS = 80
 
-const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+const SPINNER_FRAMES = ["\u281B", "\u2819", "\u2839", "\u2838", "\u283C", "\u2834", "\u2826", "\u2827", "\u280F", "\u280F"]
 
 const LANG: Record<Language, { hint: string }> = {
   en: { hint: "Output the optimized prompt in English. No explanation, no preamble, no think tags." },
-  zh: { hint: "用中文输出优化后的 prompt. 不要任何解释、前缀或 think 标签." },
+  zh: { hint: "\u7528\u4E2D\u6587\u8F93\u51FA\u4F18\u5316\u540E\u7684 prompt. \u4E0D\u8981\u4EFB\u4F55\u89E3\u91CA\u3001\u524D\u7F00\u6216 think \u6807\u7B7E." },
 }
 
 const TOAST = {
@@ -39,13 +38,11 @@ const TOAST = {
 
 const detectLanguage = (text: string): Language => /[\u4e00-\u9fff]/.test(text) ? "zh" : "en"
 
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-
 const stripThinkBlocks = (s: string): string =>
   s
     .replace(/<think>[\s\S]*?<\/think>/gi, "")
     .replace(/<thinking>[\s\S]*?<\/thinking>/gi, "")
-    .replace(/<\|begin鈻乷f鈻乼hinking\|>[\s\S]*?<\|end鈻乷f鈻乼hinking\|>/gi, "")
+    .replace(/<\|begin\u258Cof\u258Cthinking\|>[\s\S]*?<\|end\u258Cof\u258Cthinking\|>/gi, "")
     .trim()
 
 const STRONG_DOC_FILES = [
@@ -218,7 +215,7 @@ const tui: TuiPlugin = async (api: TuiPluginApi, options?: PluginOptions) => {
   let sessionCaptured: TuiPromptRef | undefined
   const [busy, setBusy] = createSignal(false)
 
-  const runEnhance = async (ref: TuiPromptRef, target?: { sessionID?: string }) => {
+  const runEnhance = async (ref: TuiPromptRef) => {
     if (busy()) return
     const raw = ref.current.input.trim()
     if (!raw) {
@@ -231,7 +228,7 @@ const tui: TuiPlugin = async (api: TuiPluginApi, options?: PluginOptions) => {
       const language: Language = languageSetting === "auto" ? detectLanguage(raw) : languageSetting
       const project = includeContext ? getCachedContext(process.cwd()) : null
       const system = buildSystem(language, project, raw)
-      const userText = raw + "\n\n（请直接输出优化后的 prompt, 不要任何解释、标记或格式说明）"
+      const userText = raw + "\n\n\uff08\u8BF7\u76F4\u63A5\u8F93\u51FA\u4F18\u5316\u540E\u7684 prompt, \u4E0D\u8981\u4EFB\u4F55\u89E3\u91CA\u3001\u6807\u8BB0\u6216\u683C\u5F0F\u8BF4\u660E\uff09"
 
       console.error("[prompt-optimizer] run", {
         projectExists: project !== null,
@@ -241,22 +238,12 @@ const tui: TuiPlugin = async (api: TuiPluginApi, options?: PluginOptions) => {
 
       const result = await tryOne(api, overrideModel, variant, system, userText, timeoutMs, pollMs)
       const resultPart = { type: "text" as const, text: result }
-
-      if (target?.sessionID) {
-        api.route.navigate("session", { sessionID: target.sessionID })
-        await delay(ROUTE_RESTORE_DELAY_MS)
-      } else {
-        api.route.navigate("home")
-        await delay(ROUTE_RESTORE_DELAY_MS)
-      }
-
-      const targetRef = target?.sessionID ? (sessionCaptured ?? ref) : (homeCaptured ?? ref)
-      targetRef.set({
+      ref.set({
         input: result,
         mode: "normal",
         parts: [resultPart],
       })
-      targetRef.focus()
+      ref.focus()
       api.ui.toast({ variant: "success", message: TOAST.success })
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
@@ -307,7 +294,7 @@ const tui: TuiPlugin = async (api: TuiPluginApi, options?: PluginOptions) => {
               api={api}
               busy={busy}
               getRef={() => sessionCaptured}
-              onEnhance={(ref) => void runEnhance(ref, { sessionID: props.session_id })}
+              onEnhance={(ref) => void runEnhance(ref)}
             />
           ),
         })
