@@ -22,6 +22,7 @@ const DEFAULT_TIMEOUT = 90_000
 const DEFAULT_POLL = 800
 const IDLE_ICON = "✧"
 const CONTEXT_TTL_MS = 5 * 60 * 1000
+const ROUTE_RESTORE_DELAY_MS = 80
 
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
 
@@ -37,6 +38,8 @@ const TOAST = {
 }
 
 const detectLanguage = (text: string): Language => /[\u4e00-\u9fff]/.test(text) ? "zh" : "en"
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 const stripThinkBlocks = (s: string): string =>
   s
@@ -215,7 +218,7 @@ const tui: TuiPlugin = async (api: TuiPluginApi, options?: PluginOptions) => {
   let sessionCaptured: TuiPromptRef | undefined
   const [busy, setBusy] = createSignal(false)
 
-  const runEnhance = async (ref: TuiPromptRef) => {
+  const runEnhance = async (ref: TuiPromptRef, target?: { sessionID?: string }) => {
     if (busy()) return
     const raw = ref.current.input.trim()
     if (!raw) {
@@ -238,12 +241,22 @@ const tui: TuiPlugin = async (api: TuiPluginApi, options?: PluginOptions) => {
 
       const result = await tryOne(api, overrideModel, variant, system, userText, timeoutMs, pollMs)
       const resultPart = { type: "text" as const, text: result }
-      ref.set({
+
+      if (target?.sessionID) {
+        api.route.navigate("session", { sessionID: target.sessionID })
+        await delay(ROUTE_RESTORE_DELAY_MS)
+      } else {
+        api.route.navigate("home")
+        await delay(ROUTE_RESTORE_DELAY_MS)
+      }
+
+      const targetRef = target?.sessionID ? (sessionCaptured ?? ref) : (homeCaptured ?? ref)
+      targetRef.set({
         input: result,
         mode: "normal",
         parts: [resultPart],
       })
-      ref.focus()
+      targetRef.focus()
       api.ui.toast({ variant: "success", message: TOAST.success })
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
@@ -294,7 +307,7 @@ const tui: TuiPlugin = async (api: TuiPluginApi, options?: PluginOptions) => {
               api={api}
               busy={busy}
               getRef={() => sessionCaptured}
-              onEnhance={(ref) => void runEnhance(ref)}
+              onEnhance={(ref) => void runEnhance(ref, { sessionID: props.session_id })}
             />
           ),
         })
@@ -370,11 +383,18 @@ async function tryOne(
 
   await api.client.session.prompt(promptBody as any)
 
-  const optimized = await pollAssistantText(api, sessionID, timeoutMs, pollMs)
-  if (!optimized) {
-    throw new Error(Math.round(timeoutMs / 1000) + "s timeout")
+  try {
+    const optimized = await pollAssistantText(api, sessionID, timeoutMs, pollMs)
+    if (!optimized) {
+      throw new Error(Math.round(timeoutMs / 1000) + "s timeout")
+    }
+    return optimized
+  } finally {
+    await api.client.session.delete({ sessionID }).catch((err: unknown) => {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error("[prompt-optimizer] cleanup failed:", msg)
+    })
   }
-  return optimized
 }
 
 async function pollAssistantText(
