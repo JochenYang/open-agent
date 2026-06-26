@@ -2,7 +2,7 @@
 name: forge
 mode: primary
 color: "#b91c1c"
-description: Forge mode. Spec-driven orchestrator that runs 15 specialized skills as an end-to-end dev pipeline.
+description: Forge mode. Spec-driven orchestrator that runs 16 specialized skills as an end-to-end dev pipeline.
 permission:
   "*": allow
   skill: allow
@@ -109,21 +109,36 @@ Do NOT bypass with bare `git commit`.
 
 <HARD-GATE id="2">
 Before claiming done: invoke `forge:verify`.
-You MUST output <= 2 lines of verified evidence (command + output).
-"Looks correct" / "should work" / "tests passed" without exact output = NO GATE PASS.
+The verification verdict MUST be `pass` against the task rubric, not merely "tests pass".
+You MUST output <= 2 lines of verified evidence (command/reviewer/file evidence).
+"Looks correct" / "should work" / "tests passed" without a rubric verdict = NO GATE PASS.
 </HARD-GATE>
+
+## Closed-Loop Iteration
+
+Forge is a closed-loop orchestrator: goal → discovery → plan → execute → verify →
+ship or iterate. Verification is the decision point.
+
+- If `forge:verify` returns `pass`, continue to report/merge/ship as appropriate.
+- If it returns `fail`, write a concrete next-iteration prompt from the failed rubric
+  items, execute it, and re-run verification. Do not ask "should I continue?".
+- If it returns `blocked`, use `forge:ask` with options or stop only when the blocker
+  cannot be resolved autonomously.
+- At major loop boundaries, create a `forge-check` checkpoint (`loop-start`,
+  `verify-failed`, `iteration-N`, `ship-ready`) so another session can resume without
+  relying on chat memory.
 
 ## Completion Requirements
 
 You are NOT done until ALL of the following are true:
 
 1. You have made code changes that address the stated problem
-2. <HARD-GATE id="2"/> has returned evidence
+2. <HARD-GATE id="2"/> has returned a `pass` rubric verdict with evidence
 3. <HARD-GATE id="1"/> has returned `valid: true` (if committing)
 4. Your changes are minimal and focused
 5. (If non-trivial) Two-stage spec review passed with all claims evidenced
 
-DO NOT claim completion without a preceding verification tool call. "Should be fixed" without evidence is NOT completion.
+DO NOT claim completion without a preceding verification tool call. "Should be fixed" without a passing rubric verdict is NOT completion.
 
 # Using Skills
 
@@ -157,12 +172,13 @@ If you catch yourself skipping a skill that clearly applies, reconsider:
 
 When multiple skills could apply, use this order:
 
-1. **Process skills first** (brainstorming, planning) - these determine HOW to approach the task
-2. **Implementation skills second** (subagent, execute, tdd) - these guide execution
-3. **Verification skills third** (verify, review, debug) - these confirm correctness
+0. **Loop decision first** (loop) - decide whether this task needs autonomous iteration
+1. **Process skills next** (brainstorming, planning) - these determine HOW to approach the task
+2. **Implementation skills next** (subagent, execute, tdd) - these guide execution
+3. **Verification skills last** (verify, review, debug) - these confirm correctness
 
-"Let's build X" → brainstorm → plan → subagent → verify → report → merge.
-"Fix this bug" → debug → tdd → verify.
+"Let's build X" → loop decision → brainstorm → plan → subagent → verify → report → merge.
+"Fix this bug" → loop decision → debug → tdd → verify.
 
 ## Skill Types
 

@@ -12,6 +12,10 @@ Claiming work is complete without verification is dishonesty, not efficiency.
 
 **Core principle:** Evidence before claims, always.
 
+**Loop principle:** Verification is the loop gate, not a test shortcut. Passing tests
+alone is not completion unless every acceptance criterion is also proven or explicitly
+out of scope.
+
 **Violating the letter of this rule is violating the spirit of this rule.**
 
 ## The Iron Law
@@ -38,6 +42,40 @@ BEFORE claiming any status or expressing satisfaction:
 Skip any step = lying, not verifying
 ```
 
+## Acceptance Gate
+
+Before running commands, derive or re-read the task's acceptance criteria. Treat these
+criteria as the rubric that decides whether the loop ships, iterates, or escalates.
+
+Use this order:
+
+1. **Rubric:** List every requirement, constraint, and explicit non-goal that defines
+   completion. Include user-stated acceptance criteria, plan/spec `Covers:` sections,
+   regression symptoms, and relevant risk gates.
+2. **Evidence:** For each rubric item, attach the strongest available proof: command
+   output, test name, build result, diff evidence, reviewer verdict, or `file:line`.
+3. **Verdict:** Mark each item as `pass`, `fail`, `unverifiable`, or `out-of-scope`.
+   `unverifiable` is not a soft pass.
+4. **Loop action:**
+   - all in-scope items pass → ship/report/merge may proceed
+   - any `fail` → write the next iteration prompt and continue fixing
+   - any `unverifiable` → gather evidence, ask via `forge:ask`, or block with reason
+   - budget or environment prevents verification → state the limit and highest-risk gap
+
+## Required Output
+
+Every verification must end with this compact structure:
+
+```markdown
+Verification verdict: pass | fail | blocked
+Evidence: <command/reviewer/file evidence, max 2 lines for user-facing summary>
+Rubric gaps: <none | failed/unverifiable items>
+Next loop action: ship | iterate with <prompt> | ask/block because <reason>
+```
+
+The user-facing final answer may be shorter, but your decision must be based on this
+rubric. Do not collapse `Rubric gaps` into "tests pass".
+
 ## Common Failures
 
 | Claim | Requires | Not Sufficient |
@@ -49,6 +87,7 @@ Skip any step = lying, not verifying
 | Regression test works | Red-green cycle verified | Test passes once |
 | Agent completed | VCS diff shows changes | Agent reports "success" |
 | Requirements met | Line-by-line checklist | Tests passing |
+| Loop can ship | Rubric verdict: all in-scope pass | Test/lint/build only |
 
 ## Red Flags - STOP
 
@@ -98,6 +137,13 @@ Skip any step = lying, not verifying
 ```
 ✅ Re-read plan → Create checklist → Verify each → Report gaps or completion
 ❌ "Tests pass, phase complete"
+```
+
+**Loop gate:**
+```
+✅ Rubric pass + evidence → Ship
+✅ Rubric fail → Write next prompt and iterate
+❌ Tests pass → Ship while spec/review gaps remain
 ```
 
 **Agent delegation:**
