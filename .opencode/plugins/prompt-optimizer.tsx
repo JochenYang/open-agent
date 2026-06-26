@@ -406,14 +406,13 @@ async function pollAssistantText(
   const deadline = Date.now() + timeoutMs
 
   while (Date.now() < deadline) {
-    const resp = await api.client.session.messages({ sessionID })
-    const messages = (resp.data?.data ?? []) as Array<any>
-
-    const assistant = messages.find((m) => m?.type === "assistant")
-    if (assistant?.time?.completed) {
-      const text = (assistant.content ?? [])
-        .filter((p: any) => p?.type === "text" && typeof p.text === "string")
-        .map((p: any) => p.text as string)
+    const messages = api.state.session.messages(sessionID)
+    const assistant = messages.find((m) => (m as any)?.role === "assistant")
+    if ((assistant as any)?.time?.completed) {
+      const parts = api.state.part((assistant as any).id)
+      const text = (parts ?? [])
+        .filter((p) => (p as any)?.type === "text" && typeof (p as any).text === "string")
+        .map((p) => (p as any).text as string)
         .join("")
 
       const cleaned = stripThinkBlocks(text)
