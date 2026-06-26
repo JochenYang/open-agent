@@ -1,5 +1,9 @@
 {
   "plugin": [
-    ["./plugins/prompt-optimizer.tsx", { "variant": "none" }]
-  ]
+    ["./plugins/prompt-optimizer.tsx", { "variant": "none" }],
+    "./plugins/speed-display.tsx"
+  ],
+  "plugin_enabled": {
+    "internal:sidebar-context": false
+  }
 }
