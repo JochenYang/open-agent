@@ -407,7 +407,7 @@ async function pollAssistantText(
 
   while (Date.now() < deadline) {
     const resp = await api.client.session.messages({ sessionID })
-    const messages = (resp.data ?? []) as Array<any>
+    const messages = (resp.data?.data ?? []) as Array<any>
 
     const assistant = messages.find((m) => m?.type === "assistant")
     if (assistant?.time?.completed) {
