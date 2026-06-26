@@ -409,9 +409,9 @@ async function pollAssistantText(
     const resp = await api.client.session.messages({ sessionID })
     const messages = (resp.data ?? []) as Array<any>
 
-    const assistant = messages.find((m) => m?.info?.role === "assistant")
-    if (assistant?.info?.time?.completed) {
-      const text = (assistant.parts ?? [])
+    const assistant = messages.find((m) => m?.type === "assistant")
+    if (assistant?.time?.completed) {
+      const text = (assistant.content ?? [])
         .filter((p: any) => p?.type === "text" && typeof p.text === "string")
         .map((p: any) => p.text as string)
         .join("")
