@@ -1,7 +1,12 @@
 {
   "plugin": [
-    ["./plugins/prompt-optimizer.tsx", { "variant": "none" }],
-    "./plugins/speed-display.tsx"
+    "./plugins/speed-display.tsx",
+    [
+      "opencode-prompt-optimizer@0.3.8",
+      {
+        "variant": "none"
+      }
+    ]
   ],
   "plugin_enabled": {
     "internal:sidebar-context": false
