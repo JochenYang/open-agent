@@ -18,8 +18,8 @@ type PluginOptions = {
   includeContext?: boolean
 }
 
-const DEFAULT_TIMEOUT = 90_000
-const DEFAULT_POLL = 800
+const DEFAULT_TIMEOUT = 120_000
+const DEFAULT_POLL = 500
 const IDLE_ICON = "\u2727"
 const CONTEXT_TTL_MS = 5 * 60 * 1000
 
@@ -37,13 +37,6 @@ const TOAST = {
 }
 
 const detectLanguage = (text: string): Language => /[\u4e00-\u9fff]/.test(text) ? "zh" : "en"
-
-const stripThinkBlocks = (s: string): string =>
-  s
-    .replace(/<think>[\s\S]*?<\/think>/gi, "")
-    .replace(/<thinking>[\s\S]*?<\/thinking>/gi, "")
-    .replace(/<\|begin\u258Cof\u258Cthinking\|>[\s\S]*?<\|end\u258Cof\u258Cthinking\|>/gi, "")
-    .trim()
 
 const STRONG_DOC_FILES = [
   "AGENTS.md",
@@ -243,7 +236,6 @@ const tui: TuiPlugin = async (api: TuiPluginApi, options?: PluginOptions) => {
         mode: "normal",
         parts: [resultPart],
       })
-      ref.focus()
       api.ui.toast({ variant: "success", message: TOAST.success })
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
@@ -358,6 +350,7 @@ async function tryOne(
     sessionID,
     system,
     parts: [userPart],
+    tools: {},
   }
   if (model) {
     const modelSpec: Record<string, string> = {
@@ -393,17 +386,23 @@ async function pollAssistantText(
   const deadline = Date.now() + timeoutMs
 
   while (Date.now() < deadline) {
-    const messages = api.state.session.messages(sessionID)
-    const assistant = messages.find((m) => (m as any)?.role === "assistant")
-    if ((assistant as any)?.time?.completed) {
-      const parts = api.state.part((assistant as any).id)
-      const text = (parts ?? [])
-        .filter((p) => (p as any)?.type === "text" && typeof (p as any).text === "string")
-        .map((p) => (p as any).text as string)
+    const resp = await api.client.session.messages({ sessionID })
+    const messages = (resp as any)?.data?.data as Array<any> | undefined
+    if (!messages) {
+      await new Promise((r) => setTimeout(r, pollMs))
+      continue
+    }
+
+    for (const m of messages) {
+      if (m?.info?.role !== "assistant") continue
+      if (!m?.info?.time?.completed) continue
+
+      const text = (m.parts ?? [])
+        .filter((p: any) => p?.type === "text" && typeof p.text === "string")
+        .map((p: any) => p.text)
         .join("")
 
-      const cleaned = stripThinkBlocks(text)
-      if (cleaned.length > 0) return cleaned
+      if (text.length > 0) return text
     }
 
     await new Promise((r) => setTimeout(r, pollMs))
