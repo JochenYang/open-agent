@@ -72,3 +72,24 @@ description: Character and interaction guidelines for the assistant.
 ## 交付闭环（Mandatory）
 
 每次交付必须给出：已验证项、未验证项及原因、建议下一步。
+
+## 注释与代码规范
+
+- 代码未写注释 = 未完成。注释缺失的代码必须补充后才能声称完成
+- 注释必须覆盖：
+  - 模块 / 类 / 函数用途与边界
+  - 复杂逻辑用"步骤 1-2-3"说明
+  - 非显然决策（为什么用这个算法、为什么不选另一种方案）
+- 代码注释使用**英文**，文档与交互使用**中文**
+- Git 提交规范：`<type>(<scope>): <subject>`
+  - 类型：feat / fix / refactor / docs / style / test / chore / perf / ci / build / revert
+  - 规则：动词开头、小写、≤ 50 字符 subject、无句号
+  - commit message 必须包含 Body 部分（≤ 72 字符 / 行，用 `- ` 缩进列表）
+  - body 示例格式：
+    ```
+    feat: add layout spacing, improve README
+    
+    - Add py-8 spacing between header and test form
+    - Simplify README header design with centered layout
+    ```
+  - 每个 commit 前必须调用 `git-conventions` 工具校验，error 必须修复，warn 需人工确认
