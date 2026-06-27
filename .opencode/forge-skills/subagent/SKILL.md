@@ -40,6 +40,32 @@ digraph when_to_use {
 - Two-stage review after each task: spec compliance first, then code quality
 - Faster iteration (no human-in-loop between tasks)
 
+## Complexity Routing
+
+Read each plan task's `Complexity:` tag before dispatching.
+
+| Complexity | Orchestrator action |
+|------------|---------------------|
+| `trivial` | Edit directly in the controller, then run targeted verification. No subagent. |
+| `standard` | Dispatch implementer, then spec review. Add code quality review when risk warrants it. |
+| `complex` | Dispatch implementer, spec review, and code quality review. |
+
+If a task lacks a tag, infer the cheapest safe path. Treat cross-module contracts,
+security, data, performance, and UI flows as `complex` unless evidence says otherwise.
+
+## Trivial Fix Path
+
+Not every review finding deserves a new subagent. Use this tiered rule:
+
+| Fix size | Action |
+|----------|--------|
+| Trivial: ≤ 5 lines, 1-2 files, no public contract change | Controller edits directly, runs focused verification, and records the reason. |
+| Small: 5-30 lines or local behavior change | Dispatch a fix subagent, then spec review only. |
+| Refactor: > 30 lines, cross-module, public API, or risk-bearing | Full implementer → spec review → code quality loop. |
+
+Direct trivial fixes are allowed because avoiding subagent overhead is safer than
+over-processing obvious one-line corrections. Never use this path for uncertain fixes.
+
 ## The Process
 
 ```dot
@@ -173,6 +199,33 @@ Implementer subagents report one of four statuses. Handle each appropriately:
 4. If the plan itself is wrong, escalate to the human
 
 **Never** ignore an escalation or force the same model to retry without changes. If the implementer said it's stuck, something needs to change.
+
+## Progress Snapshot
+
+For plans with more than five tasks, produce a compact status snapshot after every
+major milestone or when the user asks "where are we?":
+
+```markdown
+Progress: T1-Tn done · Tm-Tz pending · <count> subagents dispatched
+Spec review: <passed>/<reviewed> passed · <failures> open
+Code quality: <passed>/<reviewed> passed · <failures> open
+Estimated remaining: <rough count> dispatches based on complexity tags
+```
+
+Use `punchcard`, `git log --oneline`, and your task list as evidence. If the count is
+estimated, label it as estimated.
+
+## Tool Edit Fallback
+
+When an edit tool fails because context does not match, use this fallback chain. Do not
+repeat the same failed edit more than twice.
+
+1. Re-read the target file range in the current session.
+2. Try a smaller single-line edit.
+3. Try a narrower multi-line edit around stable anchors.
+4. Rewrite the whole file only if you have just read the full file and it is small enough.
+5. Use a small script only when the transformation is mechanical and reviewed.
+6. Ask via `forge:ask` if the safe path is unclear.
 
 ## Prompt Templates
 
@@ -347,8 +400,9 @@ Done!
 - Don't skip the re-review
 
 **If subagent fails task:**
-- Dispatch fix subagent with specific instructions
-- Don't try to fix manually (context pollution)
+- Apply the Trivial Fix Path above.
+- For non-trivial failures, dispatch a fix subagent with specific instructions.
+- Do not manually refactor uncertain or cross-module failures; that creates context pollution.
 
 ## Integration
 

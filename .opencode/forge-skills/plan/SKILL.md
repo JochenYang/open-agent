@@ -58,13 +58,31 @@ This structure informs the task decomposition. Each task should produce self-con
 
 **Tech Stack:** [Key technologies/libraries]
 
+**Platform Preset:** [Framework + version + known constraints, or "none"]
+
 ---
 ```
+
+## Platform Preset
+
+If the project uses a framework, runtime, build tool, or deployment target with known
+quirks, the plan must name it before task decomposition.
+
+Capture:
+- Framework/tool + version, from package files, lockfiles, config, or command output.
+- Entry-point, bundling, permission, routing, schema, or deployment constraints.
+- A short checklist of platform-specific pitfalls that tasks must respect.
+- One verification command that proves the platform integration still works.
+
+If you cannot identify the platform/version, say so and route back to `forge:discovery`
+instead of inventing constraints.
 
 ## Task Structure
 
 ````markdown
-### Task N: [Component Name]
+### Task N ([complexity]): [Component Name]
+
+**Complexity:** trivial | standard | complex
 
 **Covers:** [S3, S7]
 <!-- spec section anchors this task implements; every task that produces
@@ -109,6 +127,14 @@ git commit -m "feat: add specific feature"
 ```
 ````
 
+Complexity routing:
+
+| Complexity | Use for | Execution path |
+|------------|---------|----------------|
+| `trivial` | Type-only files, utilities, re-export barrels, docs/config wording | Controller may edit directly, then run targeted verification |
+| `standard` | Single-module behavior with tests or localized integration | Use implementer + spec review |
+| `complex` | Cross-module contracts, state machines, security, data, perf, UI flows | Use implementer + spec review + code quality review |
+
 ## No Placeholders
 
 Every step must contain the actual content an engineer needs. These are **plan failures** — never write them:
@@ -135,7 +161,33 @@ After writing the complete plan, look at the spec with fresh eyes and check the 
 
 **3. Type consistency:** Do the types, method signatures, and property names you used in later tasks match what you defined in earlier tasks? A function called `clearLayers()` in Task 3 but `clearFullLayers()` in Task 7 is a bug.
 
+**4. Plan lint pass:** Treat literal snippets as draft code, not prose. For every fenced
+code/config/command block, check whether it is plausibly runnable in its planned
+location:
+- Resolve relative import paths against the file path listed in `Files:`.
+- Validate JSON/YAML/TOML syntax when the block is complete config.
+- Run `git-conventions` on any commit message shown in the plan.
+- For TypeScript/JavaScript snippets, include the exact project command that will catch
+  type or build failures later, even if you cannot execute the snippet standalone.
+- For platform presets, include the platform verification command from that preset.
+
 If you find issues, fix them inline. No need to re-review — just fix and move on. If you find a spec requirement with no task, add the task.
+
+## Plan Lint Pass
+
+For non-trivial plans or any plan with literal code/config/commit-message blocks,
+dispatch a reviewer subagent before execution. The reviewer treats the plan as a
+draft artifact, not source of truth.
+
+Ask it to return:
+- Fenced code/config blocks that are syntactically invalid or missing required fields.
+- Relative imports that do not resolve from the planned file location.
+- Commit messages that fail `git-conventions`.
+- Platform-preset verification gaps.
+- Any task whose `Complexity:` tag is too low for its risk surface.
+
+Fix the plan before dispatching implementers. Skip this pass only for trivial plans
+with no literal snippets and state the reason.
 
 ## Execution Handoff
 

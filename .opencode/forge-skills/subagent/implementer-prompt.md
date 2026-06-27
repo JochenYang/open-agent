@@ -29,6 +29,18 @@ it this prompt:
 
     [Scene-setting: where this fits, dependencies, architectural context]
 
+    ## Contract Changes From Prior Tasks
+
+    [Controller injects upstream deltas that this task must respect. If none, write
+    "No prior contract changes." Include only concrete, relevant changes:]
+    - Changed export signatures, parameters, return types, or required fields
+    - Added/removed error types, message kinds, event names, or routes
+    - Deprecated APIs or import paths that prior tasks stopped using
+    - Cross-module invariants introduced by earlier tasks
+
+    Treat this section as integration context. If it contradicts the Task Description
+    or Intent, stop and report DONE_WITH_CONCERNS instead of guessing.
+
     ## Before You Begin
 
     If you have questions about:
