@@ -54,6 +54,13 @@ function writeText(p, content) {
   fs.writeFileSync(p, content, "utf-8")
 }
 
+function writeTextAtomic(p, content) {
+  ensureDir(path.dirname(p))
+  const tmp = path.join(path.dirname(p), `.${path.basename(p)}.${process.pid}.tmp`)
+  fs.writeFileSync(tmp, content, "utf-8")
+  fs.renameSync(tmp, p)
+}
+
 function listDirs(parent) {
   try {
     return fs
@@ -294,7 +301,9 @@ const punchcardTool = tool({
 
 // === forge-check: lightweight stage checkpoints ===
 
-const CHECK_OPS = ["create", "list", "get", "latest"]
+const CHECK_OPS = ["create", "list", "get", "latest", "upsert"]
+const CHECK_FILE_RE = /^(\d+)-(.+)\.md$/
+const CHECK_MAX_FILES = 200
 
 function checkDir(project, sid) {
   return path.join(FORGE_ROOT, "checks", project, sid)
@@ -323,11 +332,60 @@ function listChecks(project, sid) {
   return out
 }
 
+function listChecksAll(project) {
+  const out = []
+  const base = path.join(FORGE_ROOT, "checks", project)
+  try {
+    for (const sid of fs.readdirSync(base, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name)) {
+      out.push(...listChecks(project, sid))
+    }
+  } catch {}
+  out.sort((a, b) => b.ts - a.ts)
+  return out
+}
+
+function findCheckpointByStage(project, sid, stage) {
+  return listChecks(project, sid).filter((it) => it.stage === stage)[0] ?? null
+}
+
+function pruneCheckpoints(project, sid, max) {
+  const limit = max || CHECK_MAX_FILES
+  const items = listChecks(project, sid)
+  if (items.length <= limit) return 0
+  let removed = 0
+  for (const it of items.slice(limit)) {
+    try {
+      fs.unlinkSync(it.path)
+      removed++
+    } catch {}
+  }
+  return removed
+}
+
+function validateStructured(details, stage) {
+  if (!details || !details.trim()) return "details is required when structured=true"
+  let parsed
+  try {
+    parsed = JSON.parse(details)
+  } catch {
+    return "details must be valid JSON when structured=true"
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return "details must be a JSON object when structured=true"
+  }
+  if (stage && (stage.startsWith("iteration-") || stage === "verify-failed")) {
+    if (!("result" in parsed) && !("status" in parsed)) {
+      return `loop-stage "${stage}" requires 'status' or 'result' in details JSON`
+    }
+  }
+  return null
+}
+
 const forgeCheckTool = tool({
   description:
     "Lightweight stage checkpoint. Snapshots a milestone in the current session (e.g., 'plan-complete', 'task-1-done'). Persists to ~/.config/opencode/forge/checks/. Use this to record progress so a resumed session can pick up where it left off.",
   args: {
-    operation: tool.schema.enum(CHECK_OPS).describe("create | list | get | latest"),
+    operation: tool.schema.enum(CHECK_OPS).describe("create | list | get | latest | upsert"),
     session_id: tool.schema.string().describe("Session id (defaults to current session)").optional(),
     stage: tool.schema
       .string()
@@ -335,23 +393,42 @@ const forgeCheckTool = tool({
       .optional(),
     summary: tool.schema.string().describe("Short title for the checkpoint (used as H1)").optional(),
     details: tool.schema.string().describe("Optional body content (markdown supported)").optional(),
+    structured: tool.schema.boolean().describe("If true, validate details as JSON").optional(),
+    scope: tool.schema.enum(["session", "project"]).describe("Search scope for list/latest: 'session' (default) or 'project' (all sessions)").optional(),
     file: tool.schema.string().describe("Checkpoint filename (for operation=get)").optional(),
   },
   execute: async (args, ctx) => {
     const op = String(args.operation ?? "")
     const sid = String(args.session_id ?? ctx.sessionID ?? "default")
     const project = projectHash(projectDir(ctx))
+    const scope = String(args.scope ?? "session")
     try {
-      if (op === "create") {
+      if (op === "create" || op === "upsert") {
         const stage = String(args.stage ?? "").trim()
-        if (!stage) return "forge-check.create: stage is required (e.g., 'plan-complete')"
+        if (!stage) return `forge-check.${op}: stage is required (e.g., 'plan-complete')`
         if (!/^[a-z0-9][a-z0-9-]*$/.test(stage)) {
-          return `forge-check.create: stage must be kebab-case slug (got "${stage}")`
+          return `forge-check.${op}: stage must be kebab-case slug (got "${stage}")`
         }
         const summary = String(args.summary ?? stage).trim()
         const details = String(args.details ?? "")
-        const ts = Date.now()
-        const file = path.join(checkDir(project, sid), `${ts}-${stage}.md`)
+        if (args.structured) {
+          const err = validateStructured(details, stage)
+          if (err) return `forge-check.${op}: ${err}`
+        }
+        let ts, file
+        if (op === "upsert") {
+          const existing = findCheckpointByStage(project, sid, stage)
+          if (existing) {
+            ts = existing.ts
+            file = existing.path
+          } else {
+            ts = Date.now()
+            file = path.join(checkDir(project, sid), `${ts}-${stage}.md`)
+          }
+        } else {
+          ts = Date.now()
+          file = path.join(checkDir(project, sid), `${ts}-${stage}.md`)
+        }
         const content = [
           `# ${summary}`,
           "",
@@ -364,21 +441,27 @@ const forgeCheckTool = tool({
           "",
           details,
         ].join("\n")
-        writeText(file, content)
-        return `Checkpoint recorded: ${stage} (project ${project})\n  ${file}`
+        writeTextAtomic(file, content)
+        const pruned = pruneCheckpoints(project, sid)
+        const pruneMsg = pruned ? ` (pruned ${pruned} old)` : ""
+        return `Checkpoint ${op === "upsert" ? "upserted" : "recorded"}: ${stage}${pruneMsg}\n  ${file}`
       }
       if (op === "list") {
-        const items = listChecks(project, sid)
-        if (items.length === 0) return `No checkpoints in project ${project} session ${sid}.`
+        const items = scope === "project"
+          ? listChecksAll(project)
+          : listChecks(project, sid)
+        if (items.length === 0) return `No checkpoints in ${scope} ${project}/${sid}.`
         const lines = items.map((it) => {
           const when = new Date(it.ts).toISOString().slice(0, 16).replace("T", " ")
           return `${when}  ${it.stage.padEnd(20)}  ${it.title}`
         })
-        return `Checkpoints (${project}/${sid}, ${items.length} items):\n\n${lines.join("\n")}`
+        return `Checkpoints (${scope} ${project}/${sid}, ${items.length} items):\n\n${lines.join("\n")}`
       }
       if (op === "latest") {
-        const items = listChecks(project, sid)
-        if (items.length === 0) return `No checkpoints in project ${project} session ${sid}.`
+        const items = scope === "project"
+          ? listChecksAll(project)
+          : listChecks(project, sid)
+        if (items.length === 0) return `No checkpoints in ${scope} ${project}/${sid}.`
         const it = items[0]
         const text = readText(it.path) ?? ""
         return `Latest checkpoint (${it.stage}, ${new Date(it.ts).toISOString()}):\n\n${text}\n\nFile: ${it.path}`
@@ -386,10 +469,18 @@ const forgeCheckTool = tool({
       if (op === "get") {
         const file = String(args.file ?? "")
         if (!file) return "forge-check.get: file is required (e.g., '1700000000-plan-complete.md')"
-        const full = path.join(checkDir(project, sid), file)
-        const text = readText(full)
-        if (!text) return `No checkpoint file: ${full}`
-        return text + `\n\nFile: ${full}`
+        const safe = path.basename(file)
+        if (!CHECK_FILE_RE.test(safe)) {
+          return `forge-check.get: invalid filename "${safe}" — must match <timestamp>-<stage>.md`
+        }
+        const full = path.join(checkDir(project, sid), safe)
+        const resolved = path.resolve(full)
+        if (!resolved.startsWith(path.resolve(checkDir(project, sid)))) {
+          return "forge-check.get: path traversal denied"
+        }
+        const text = readText(resolved)
+        if (!text) return `No checkpoint file: ${safe}`
+        return text + `\n\nFile: ${safe}`
       }
       return `forge-check: unknown operation "${op}". Available: ${CHECK_OPS.join(", ")}.`
     } catch (e) {

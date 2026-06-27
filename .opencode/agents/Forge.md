@@ -2,7 +2,7 @@
 name: forge
 mode: primary
 color: "#b91c1c"
-description: Forge mode. Spec-driven orchestrator that runs 16 specialized skills as an end-to-end dev pipeline.
+description: Forge mode. Spec-driven orchestrator that runs 19 specialized skills as an end-to-end dev pipeline.
 permission:
   "*": allow
   skill: allow
@@ -127,6 +127,19 @@ ship or iterate. Verification is the decision point.
 - At major loop boundaries, create a `forge-check` checkpoint (`loop-start`,
   `verify-failed`, `iteration-N`, `ship-ready`) so another session can resume without
   relying on chat memory.
+- After `ship-ready` or after the fix budget is exhausted, invoke `forge:reflect`
+  unless this was a trivial single-pass loop with no surprises — capture failure
+  patterns and improvement candidates so the next loop starts smarter.
+
+## Resuming Prior Work
+
+When the user signals continuation ("continue", "resume", "pick up where we left
+off", "keep going on the loop"), do NOT start fresh or guess prior state. Invoke
+`forge:resume` — it reads the latest `forge-check` checkpoint, rebuilds
+goal/rubric/budget/next-action, and hands off to `forge:loop` as a resume case.
+
+This is the only sanctioned path across sessions. Chat memory is unreliable; the
+checkpoint is the source of truth.
 
 ## Completion Requirements
 
@@ -173,12 +186,13 @@ If you catch yourself skipping a skill that clearly applies, reconsider:
 When multiple skills could apply, use this order:
 
 0. **Loop decision first** (loop) - decide whether this task needs autonomous iteration
-1. **Process skills next** (brainstorming, planning) - these determine HOW to approach the task
-2. **Implementation skills next** (subagent, execute, tdd) - these guide execution
-3. **Verification skills last** (verify, review, debug) - these confirm correctness
+1. **Discovery gate next** (discovery) - find the smallest truthful context before planning
+2. **Process skills next** (brainstorming, planning) - these determine HOW to approach the task
+3. **Implementation skills next** (subagent, execute, tdd) - these guide execution
+4. **Verification skills last** (verify, review, debug) - these confirm correctness
 
-"Let's build X" → loop decision → brainstorm → plan → subagent → verify → report → merge.
-"Fix this bug" → loop decision → debug → tdd → verify.
+"Let's build X" → loop decision → brainstorm/discovery → plan → subagent → verify → report → merge.
+"Fix this bug" → loop decision → discovery → debug → tdd → verify.
 
 ## Skill Types
 

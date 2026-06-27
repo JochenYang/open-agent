@@ -10,7 +10,7 @@
 </p>
 
 <p>
-  <img alt="Forge Skills" src="https://img.shields.io/badge/Forge_Skills-16-7C3AED?style=flat-square&labelColor=1E293B">
+  <img alt="Forge Skills" src="https://img.shields.io/badge/Forge_Skills-19-7C3AED?style=flat-square&labelColor=1E293B">
   <img alt="Subagents" src="https://img.shields.io/badge/Subagents-9-0EA5E9?style=flat-square&labelColor=1E293B">
   <img alt="Custom Tools" src="https://img.shields.io/badge/Custom_Tools-6-F97316?style=flat-square&labelColor=1E293B">
   <img alt="Plugins" src="https://img.shields.io/badge/Plugins-4-DC2626?style=flat-square&labelColor=1E293B">
@@ -26,13 +26,13 @@
 
 ---
 
-**Open Agent** 是一套围绕 OpenCode 构建的工程化多代理体系。核心由 **Forge** 主代理统一编排 **16 个 Forge Skill** 完成 loop → brainstorm → plan → execute → verify → review → merge 全流程，并按需调度 **9 个专长 Subagent** 处理审查、调试、测试、数据库、性能、部署、代码探索等领域工作；同时附带 **6 个自定义 TS 工具**、**4 个 Plugin**、**4 个 MCP 服务**与 **6 套规则文档**，让一台 OpenCode 即可拥有完整的"产品 → 工程 → 验证 → 交付"流水线。
+**Open Agent** 是一套围绕 OpenCode 构建的工程化多代理体系。核心由 **Forge** 主代理统一编排 **19 个 Forge Skill** 完成 loop → discovery → brainstorm → plan → execute → verify → review → merge 全流程，并按需调度 **9 个专长 Subagent** 处理审查、调试、测试、数据库、性能、部署、代码探索等领域工作；同时附带 **6 个自定义 TS 工具**、**4 个 Plugin**、**4 个 MCP 服务**与 **6 套规则文档**，让一台 OpenCode 即可拥有完整的"产品 → 工程 → 验证 → 交付"流水线。
 
 ---
 
 ## 特性
 
-- **Skill 驱动编排** — Forge agent 不再硬编码工作流，而是按任务特征动态加载 16 个 Skill；新增工作流 = 加一份 SKILL.md
+- **Skill 驱动编排** — Forge agent 不再硬编码工作流，而是按任务特征动态加载 19 个 Skill；新增工作流 = 加一份 SKILL.md
 - **专长子代理可调** — Reviewer / Guard / Tester / Detective / Builder / DBA / Perf / Ops / Explore 九个职责清晰的 subagent，覆盖审查、调试、TDD、实现、数据库、性能、部署、AST 代码搜索
 - **规格优先与两阶段评审** — 复杂任务先经 brainstorm 形成 spec，subagent 工作完毕后由 spec-reviewer + code-quality-reviewer 双轨复核
 - **证据优先与防侥幸** — `rules/evidence-first.md` 引入 L1–L4 证据分级，所有非显然结论强制标注证据等级与验证路径
@@ -54,16 +54,17 @@ graph TB
         BD["build / plan / general<br/>OpenCode 内置主代理"]
     end
 
-    subgraph Skills["Forge Skills (16)"]
+    subgraph Skills["Forge Skills (19)"]
         direction LR
-        S1["brainstorm · ask · plan"]
+        S1["loop · discovery · brainstorm · resume"]
+        S1B["ask · plan"]
         S2["subagent · execute · tdd"]
         S3["verify · review · debug"]
         S4["feedback · parallel · worktree"]
-        S5["merge · report · new-skill"]
+        S5["merge · report · reflect · new-skill"]
     end
 
-    subgraph Subagents["专长 Subagent (8)"]
+    subgraph Subagents["专长 Subagent (9)"]
         direction LR
         YS["Reviewer<br/>代码审查"]
         CS["Guard<br/>安全审查"]
@@ -73,10 +74,11 @@ graph TB
         JZ["DBA<br/>数据库迁移"]
         XH["Perf<br/>性能分析"]
         DW["Ops<br/>部署运维"]
+        EX["Explore<br/>代码探索"]
     end
 
     subgraph Infra["工具 / 插件 / MCP / Rules"]
-        TL["Tools<br/>dep-graph · dead-code<br/>schema-diff · git-conventions · vision"]
+        TL["Tools<br/>dep-graph · dead-code · codesearch<br/>schema-diff · git-conventions · vision"]
         PL["Plugins<br/>forge · notification<br/>mission · md-table"]
         MC["MCP<br/>context7 · exa<br/>interleaved-thinking · time-mcp"]
         RL["Rules<br/>character · coding-standards<br/>product-workflow · security<br/>context-compression · evidence-first"]
@@ -105,13 +107,15 @@ graph TB
 
 ## Forge Skills
 
-16 个 SKILL.md 散布在 `.opencode/forge-skills/`，由 Forge agent 用 `skill` 工具按需加载。Skill 自带"何时该用 / 何时不该用 / 检查清单 / 反例"四段式说明。
+19 个 SKILL.md 散布在 `.opencode/forge-skills/`，由 Forge agent 用 `skill` 工具按需加载。Skill 自带"何时该用 / 何时不该用 / 检查清单 / 反例"四段式说明。
 
 | 阶段   | Skill        | 作用                                                        |
 |--------|--------------|-------------------------------------------------------------|
 | 探索   | `brainstorm` | 任何需要创意/方案的工作前先跑，输出可签字的 spec             |
 | 探索   | `ask`        | 决策、澄清、审批的统一入口；无人值守时自动决策                 |
 | 编排   | `loop`       | 自动判断是否启动闭环，定义 rubric，并按 verify 结果 ship 或 iterate |
+| 编排   | `resume`     | 从最近 forge-check checkpoint 重建 loop 状态，跨会话续跑，不靠聊天记忆 |
+| 探索   | `discovery`  | 计划或实现前探查最小代码切片、影响面、约束与风险               |
 | 规划   | `plan`       | 把 spec 拆成多步任务，写成可执行 plan                        |
 | 执行   | `subagent`   | 通过 `task` 派发独立 subagent，独立任务同一响应并行发出，强制两阶段评审 |
 | 执行   | `execute`    | 在新 session 中执行已写好的 plan，带 review checkpoint       |
@@ -124,6 +128,7 @@ graph TB
 | 协作   | `worktree`   | 隔离工作区，避免污染当前分支                                 |
 | 收尾   | `merge`      | 实现完成、测试通过后选择合并 / PR / 清理                     |
 | 收尾   | `report`     | 多次 spec 迭代后合并出最终态报告并沉淀 lesson               |
+| 收尾   | `reflect`    | ship 或预算耗尽后复盘失败模式，沉淀改进候选到 checkpoint      |
 | 元能力 | `new-skill`  | 新建 / 修改 skill，含 subagent 验证流程                      |
 
 ---
@@ -319,7 +324,7 @@ opencode
     "~/.config/opencode/rules/evidence-first.md"
   ],
   "skills": {
-    "paths": ["~/.config/opencode/forge-skills"]   // 注册 16 个 SKILL.md
+    "paths": ["~/.config/opencode/forge-skills"]   // 注册 19 个 SKILL.md
   },
   "mcp": {
     "context7":             { "type": "local",  "command": ["npx","-y","@upstash/context7-mcp","--api-key","{env:CONTEXT7_API_KEY}"] },
@@ -368,7 +373,7 @@ open-agent/
     │   ├── DBA.md                 #   subagent — 数据库迁移
     │   ├── Perf.md                #   subagent — 性能分析
     │   └── Ops.md                 #   subagent — 部署运维
-    ├── forge-skills/            # 16 个 SKILL.md（ask/brainstorm/.../worktree）
+    ├── forge-skills/            # 19 个 SKILL.md（ask/brainstorm/.../worktree）
     ├── tools/                   # 6 个自定义 TS 工具 + parsers/（7 种语言）
     ├── plugins/                 # 4 个 plugin（forge / notification / mission / vision-helper）
     ├── rules/                   # 6 套规则（character / coding-standards / ...）
@@ -379,18 +384,6 @@ open-agent/
 ---
 
 ## 设计理念
-
-### 从"prompt 编排"到"skill 编排"
-
-旧版 Open Agent 用三个主代理（中军 / 行者 / 谋士）+ prompt 内固化的工作流来组织协作；新版改用 **Forge + 16 Skill** 的可插拔模式：
-
-| 维度         | 旧版（prompt-driven） | 新版（skill-driven）                       |
-|--------------|---------------------|------------------------------------------|
-| 工作流变更   | 改主代理 prompt     | 加一份 SKILL.md                          |
-| 工作流可见性 | 嵌在 agent 文件里   | 独立文件、独立版本                        |
-| 用户介入     | Tab 切换 + 自然语言 | `/skill <name>` 或自动加载               |
-| 角色边界     | 三主代理互不串台    | 单 Forge 协调 + subagent 分工            |
-| 评审         | 单次 Reviewer PASS  | 两阶段评审（spec-reviewer + code-quality） |
 
 ### 三个不可让步的原则
 

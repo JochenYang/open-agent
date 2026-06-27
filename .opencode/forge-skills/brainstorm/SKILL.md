@@ -28,7 +28,11 @@ You MUST create a task for each of these items and complete them in order:
 
 **Autonomous mode (no user available):** Skip steps 2–8. Only do: explore project context (step 1) → implement directly (invoke forge:plan or forge:execute). Do NOT present a design, ask questions, write a spec, or wait for approval.
 
-1. **Explore project context** — check files, docs, recent commits
+1. **Explore project context** — check files, docs, recent commits. For changes that
+   may touch 2+ files or shared contracts, invoke `forge:discovery` (D1 depth) first
+   so your clarifying questions and proposed approaches are grounded in the real
+   impact surface, not guesses. This discovery can be reused by a later loop
+   or plan if the work proceeds beyond brainstorm.
 2. **Offer visual companion** (if topic will involve visual questions) — this is its own message, not combined with a clarifying question. See the Visual Companion section below.
 3. **Ask clarifying questions** — one at a time, understand purpose/constraints/success criteria
 4. **Propose 2-3 approaches** — with trade-offs and your recommendation
@@ -43,6 +47,8 @@ You MUST create a task for each of these items and complete them in order:
 ```dot
 digraph brainstorm {
     "Explore project context" [shape=box];
+    "Needs D1 discovery?\n(2+ files / shared contracts)" [shape=diamond];
+    "Run forge:discovery (D1)" [shape=box];
     "Visual questions ahead?" [shape=diamond];
     "Offer Visual Companion\n(own message, no other content)" [shape=box];
     "Ask clarifying questions" [shape=box];
@@ -52,9 +58,12 @@ digraph brainstorm {
     "Write design doc" [shape=box];
     "Spec self-review\n(fix inline)" [shape=box];
     "User reviews spec?" [shape=diamond];
-    "Invoke forge:plan" [shape=doublecircle];
+    "Invoke forge:plan\n(or feed spec to forge:loop)" [shape=doublecircle];
 
-    "Explore project context" -> "Visual questions ahead?";
+    "Explore project context" -> "Needs D1 discovery?\n(2+ files / shared contracts)";
+    "Needs D1 discovery?\n(2+ files / shared contracts)" -> "Run forge:discovery (D1)" [label="yes"];
+    "Needs D1 discovery?\n(2+ files / shared contracts)" -> "Visual questions ahead?" [label="no: trivial"];
+    "Run forge:discovery (D1)" -> "Visual questions ahead?";
     "Visual questions ahead?" -> "Offer Visual Companion\n(own message, no other content)" [label="yes"];
     "Visual questions ahead?" -> "Ask clarifying questions" [label="no"];
     "Offer Visual Companion\n(own message, no other content)" -> "Ask clarifying questions";
@@ -66,17 +75,25 @@ digraph brainstorm {
     "Write design doc" -> "Spec self-review\n(fix inline)";
     "Spec self-review\n(fix inline)" -> "User reviews spec?";
     "User reviews spec?" -> "Write design doc" [label="changes requested"];
-    "User reviews spec?" -> "Invoke forge:plan" [label="approved"];
+    "User reviews spec?" -> "Invoke forge:plan\n(or feed spec to forge:loop)" [label="approved"];
 }
 ```
 
-**The terminal state is invoking forge:plan.** Do NOT invoke frontend-design, mcp-builder, or any other implementation skill. The ONLY skill you invoke after brainstorming is forge:plan.
+**The terminal state is one of two paths.** Do NOT invoke frontend-design,
+mcp-builder, or any other implementation skill directly.
+- No loop active → invoke `forge:plan` to turn the spec into an implementation plan.
+- A `forge:loop` is wrapping this brainstorm → feed the approved spec into the loop
+  as Goal/Rubric input (per loop's Brainstorm Boundary); the loop then runs its own
+  discovery/plan/execute/verify.
 
 ## The Process
 
 **Understanding the idea:**
 
-- Check out the current project state first (files, docs, recent commits)
+- Check out the current project state first (files, docs, recent commits). If the
+  change likely spans 2+ files or shared contracts, run `forge:discovery` (D1) to
+  ground your questions in the real impact surface — this discovery can be reused
+  by a later loop or plan.
 - Before asking detailed questions, assess scope: if the request describes multiple independent subsystems (e.g., "build a platform with chat, file storage, billing, and analytics"), flag this immediately. Don't spend questions refining details of a project that needs to be decomposed first.
 - If the project is too large for a single spec, help the user decompose into sub-projects: what are the independent pieces, how do they relate, what order should they be built? Then brainstorm the first sub-project through the normal design flow. Each sub-project gets its own spec → plan → implementation cycle.
 - For appropriately-scoped projects, ask questions one at a time to refine the idea
