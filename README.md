@@ -84,9 +84,10 @@ graph TB
         RL["Rules<br/>character · coding-standards<br/>product-workflow · security<br/>context-compression · evidence-first"]
     end
 
-    User --> FG & BD
+    User --> FG
+    User --> BD
     FG -->|skill tool| Skills
-    FG -->|task tool (parallel fan-out)| Subagents
+    FG -->|"task tool, parallel fan-out"| Subagents
     Skills -.->|工作流编排| Subagents
 
     FG --- Infra
