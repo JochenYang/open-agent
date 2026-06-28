@@ -1,423 +1,219 @@
 ---
 name: forge:subagent
 hidden: true
-description: Use when executing implementation plans with independent tasks in the current session
+description: Use when executing plans through specialized subagents with evidence-gated review loops
 ---
 
-# Subagent-Driven Development
+# Subagent-Driven Delivery
 
-Execute plan by dispatching fresh subagent per task via the `task` tool, with two-stage review after each: spec compliance review first, then code quality review.
+Use fresh subagents to execute bounded tasks while Forge keeps the plan, state, and
+quality gates. Each subagent should receive a self-contained prompt and return a
+structured status.
 
-**Why subagents:** You delegate tasks to specialized agents with isolated context. By precisely crafting their instructions and context, you ensure they stay focused and succeed at their task. They should never inherit your session's context or history — you construct exactly what they need. This also preserves your own context for coordination work.
+**Core principle:** specialized subagent + bounded prompt + evidence-gated review =
+faster and safer delivery than context-heavy improvisation.
 
-**Core principle:** Fresh subagent per task + two-stage review (spec then quality) = high quality, fast iteration
+## When To Use
 
-**Continuous execution:** Do not pause to check in with your human partner between tasks. Execute all tasks from the plan without stopping. The only reasons to stop are: BLOCKED status you cannot resolve, ambiguity that genuinely prevents progress, or all tasks complete. "Should I continue?" prompts and progress summaries waste their time — they asked you to execute the plan, so execute it. When you must stop for ambiguity or a blocker, use `forge:ask` to present the situation with structured options. If no user is available, resolve it with your best judgment and continue.
+Use `forge:subagent` when:
 
-## When to Use
+- a task is not trivial enough for direct controller edits
+- a plan already exists or one task boundary is clear
+- focused implementation, debugging, testing, or review work can be delegated
+- you want isolated execution context and cleaner checkpoints
 
-```dot
-digraph when_to_use {
-    "Have implementation plan?" [shape=diamond];
-    "Tasks mostly independent?" [shape=diamond];
-    "Stay in this session?" [shape=diamond];
-    "forge:subagent" [shape=box];
-    "forge:execute" [shape=box];
-    "Manual execution or brainstorm first" [shape=box];
+Do **not** use it for one-line obvious fixes, or before the task boundary is clear.
 
-    "Have implementation plan?" -> "Tasks mostly independent?" [label="yes"];
-    "Have implementation plan?" -> "Manual execution or brainstorm first" [label="no"];
-    "Tasks mostly independent?" -> "Stay in this session?" [label="yes"];
-    "Tasks mostly independent?" -> "Manual execution or brainstorm first" [label="no - tightly coupled"];
-    "Stay in this session?" -> "forge:subagent" [label="yes"];
-    "Stay in this session?" -> "forge:execute" [label="no - parallel session"];
-}
-```
+## Subagent Routing
 
-**vs. Executing Plans (parallel session):**
-- Same session (no context switch)
-- Fresh subagent per task (no context pollution)
-- Two-stage review after each task: spec compliance first, then code quality
-- Faster iteration (no human-in-loop between tasks)
+Prefer specialized agents over `general`.
+
+| Need | Preferred subagent |
+| --- | --- |
+| Root-cause analysis | `Detective` |
+| TDD, regression, command-based verification | `Tester` |
+| Bounded implementation or small refactor | `Builder` |
+| Correctness / maintainability review | `Reviewer` |
+| Security review | `Guard` |
+| Schema / migration / query work | `DBA` |
+| Performance analysis | `Perf` |
+| Build / runtime / release concerns | `Ops` |
+| No specialized fit | `general` |
+
+Use `general` only when no specialized agent cleanly matches the work.
 
 ## Complexity Routing
 
-Read each plan task's `Complexity:` tag before dispatching.
+| Complexity | Controller action |
+| --- | --- |
+| `trivial` | edit directly, run focused verification, record reason |
+| `standard` | dispatch one specialized subagent, then targeted review |
+| `complex` | dispatch specialized implementer, spec review, code-quality review, and re-review loop as needed |
 
-| Complexity | Orchestrator action |
-|------------|---------------------|
-| `trivial` | Edit directly in the controller, then run targeted verification. No subagent. |
-| `standard` | Dispatch implementer, then spec review. Add code quality review when risk warrants it. |
-| `complex` | Dispatch implementer, spec review, and code quality review. |
+Treat cross-module contracts, schema changes, security-sensitive work, and user-facing
+flows as `complex` unless evidence proves otherwise.
 
-If a task lacks a tag, infer the cheapest safe path. Treat cross-module contracts,
-security, data, performance, and UI flows as `complex` unless evidence says otherwise.
+## Concurrency Rules
 
-## Trivial Fix Path
+### Safe to fan out in one response
 
-Not every review finding deserves a new subagent. Use this tiered rule:
+- read-only discovery
+- independent review tasks
+- independent bug triage on disjoint files
+- isolated implementation tasks with proven file non-overlap and no shared contract
 
-| Fix size | Action |
-|----------|--------|
-| Trivial: ≤ 5 lines, 1-2 files, no public contract change | Controller edits directly, runs focused verification, and records the reason. |
-| Small: 5-30 lines or local behavior change | Dispatch a fix subagent, then spec review only. |
-| Refactor: > 30 lines, cross-module, public API, or risk-bearing | Full implementer → spec review → code quality loop. |
+### Default to serialize
 
-Direct trivial fixes are allowed because avoiding subagent overhead is safer than
-over-processing obvious one-line corrections. Never use this path for uncertain fixes.
+- implementation on the same feature or contract
+- tasks touching the same file
+- migrations and release work
+- verify-failed repair loops
 
-## The Process
+Rule of thumb: **parallelize analysis, serialize implementation**.
 
-```dot
-digraph process {
-    rankdir=TB;
+## Controller Responsibilities
 
-    subgraph cluster_per_task {
-        label="Per Task";
-        "Inject covered spec as Intent, dispatch implementer (./implementer-prompt.md) via task tool" [shape=box];
-        "Implementer subagent asks questions?" [shape=diamond];
-        "Answer questions, provide context, re-dispatch" [shape=box];
-        "Implementer subagent implements, tests, commits, self-reviews" [shape=box];
-        "Dispatch spec reviewer phase 1 (spec + diff only, no report)" [shape=box];
-        "Phase 1 flagged anything?" [shape=diamond];
-        "Dispatch spec reviewer phase 2 (report explains flags, downgrade-only)" [shape=box];
-        "Gate: all in-scope claims pass with evidence?" [shape=diamond];
-        "Implementer subagent fixes failing/unverifiable claims" [shape=box];
-        "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" [shape=box];
-        "Code quality reviewer subagent approves?" [shape=diamond];
-        "Implementer subagent fixes quality issues" [shape=box];
-        "Task complete" [shape=box];
-    }
+Forge remains responsible for:
 
-    "Read plan, extract all tasks with full text and context" [shape=box];
-    "More tasks remain?" [shape=diamond];
-    "Dispatch final code reviewer subagent for entire implementation" [shape=box];
-    "Use forge:merge" [shape=box style=filled fillcolor=lightgreen];
+- choosing the subagent
+- deciding serial vs parallel execution
+- providing full context and scope boundaries
+- tracking work-items with `punchcard`
+- persisting loop state with `forge-check`
+- running or requiring the final verification gate
 
-    "Read plan, extract all tasks with full text and context" -> "Inject covered spec as Intent, dispatch implementer (./implementer-prompt.md) via task tool";
-    "Inject covered spec as Intent, dispatch implementer (./implementer-prompt.md) via task tool" -> "Implementer subagent asks questions?";
-    "Implementer subagent asks questions?" -> "Answer questions, provide context, re-dispatch" [label="yes"];
-    "Answer questions, provide context, re-dispatch" -> "Inject covered spec as Intent, dispatch implementer (./implementer-prompt.md) via task tool";
-    "Implementer subagent asks questions?" -> "Implementer subagent implements, tests, commits, self-reviews" [label="no"];
-    "Implementer subagent implements, tests, commits, self-reviews" -> "Dispatch spec reviewer phase 1 (spec + diff only, no report)";
-    "Dispatch spec reviewer phase 1 (spec + diff only, no report)" -> "Phase 1 flagged anything?";
-    "Phase 1 flagged anything?" -> "Dispatch spec reviewer phase 2 (report explains flags, downgrade-only)" [label="yes"];
-    "Phase 1 flagged anything?" -> "Gate: all in-scope claims pass with evidence?" [label="no"];
-    "Dispatch spec reviewer phase 2 (report explains flags, downgrade-only)" -> "Gate: all in-scope claims pass with evidence?";
-    "Gate: all in-scope claims pass with evidence?" -> "Implementer subagent fixes failing/unverifiable claims" [label="no"];
-    "Implementer subagent fixes failing/unverifiable claims" -> "Dispatch spec reviewer phase 1 (spec + diff only, no report)" [label="re-review"];
-    "Gate: all in-scope claims pass with evidence?" -> "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" [label="yes"];
-    "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" -> "Code quality reviewer subagent approves?";
-    "Code quality reviewer subagent approves?" -> "Implementer subagent fixes quality issues" [label="no"];
-    "Implementer subagent fixes quality issues" -> "Dispatch code quality reviewer subagent (./code-quality-reviewer-prompt.md)" [label="re-review"];
-    "Code quality reviewer subagent approves?" -> "Task complete" [label="yes"];
-    "Task complete" -> "More tasks remain?";
-    "More tasks remain?" -> "Inject covered spec as Intent, dispatch implementer (./implementer-prompt.md) via task tool" [label="yes"];
-    "More tasks remain?" -> "Dispatch final code reviewer subagent for entire implementation" [label="no"];
-    "Dispatch final code reviewer subagent for entire implementation" -> "Use forge:merge";
-}
-```
+The `task` tool is not your task tracker. Use `punchcard` for T1/T1.1 work-items.
 
-## Spec-Anchored Review Gate
+## Prompt Contract For Every Dispatch
 
-This is how each task's spec-compliance review works. It replaces a single
-prose review with intent-grounded implementation and a two-phase, evidence-gated
-verdict.
+Every dispatched subagent prompt should contain:
 
-**1. Inject intent before dispatching the implementer.** Read the task's `Covers:`
-field, pull the verbatim text of those `[Sn]` spec sections, and paste it into the
-implementer prompt's `## Intent (from spec)` block (see `./implementer-prompt.md`).
-The implementer never reads the spec itself — you hand it exactly the sections its
-task covers, with the scope boundary intact.
+1. **Goal** — the exact outcome for this task
+2. **Scope** — which files / modules may change
+3. **Non-goals** — what must not change
+4. **Context** — relevant file excerpts, spec sections, errors, and constraints
+5. **Verification expectation** — tests, commands, or review evidence required
+6. **Output contract** — `Status`, result, evidence, risks, next recommendation
+7. **Relevant forge skill hint** — e.g. "follow `forge:tdd`"
 
-Then dispatch via the `task` tool (opencode-native subagent spawn):
+Do not make the subagent discover the plan or intent from scratch if you already know it.
 
-```
-task(
-  description: "<3-5 word summary>",
-  prompt: "<full implementer prompt with Intent block + scaffold + ./implementer-prompt.md content>",
-  subagent_type: "general"
-)
-```
+## Per-Task Process
 
-The implementer subagent runs in an isolated context, sees ONLY what you put in
-the prompt, and returns a status report.
+1. Read the task boundary and supporting context.
+2. Decide direct edit vs subagent dispatch based on complexity.
+3. Create / start the work-item in `punchcard`.
+4. Dispatch the specialized subagent with a self-contained prompt.
+5. Handle the returned `Status`.
+6. If implementation work occurred, run the review loop.
+7. Mark the work-item done only after the relevant review / verify gate passes.
 
-**2. Run the spec reviewer in two phases** (see `./spec-reviewer-prompt.md`):
-- **Phase 1:** dispatch with the covered spec section text + `git diff` ONLY. Do NOT
-  include the implementer's report — its claims anchor the reviewer toward confirming
-  what was reported and away from spotting silent omissions. Phase 1 returns a
-  structured per-claim verdict.
-- **Phase 2:** only if phase 1 flagged anything. Re-dispatch the same reviewer with
-  its phase-1 verdict + the implementer's report, solely to let the report explain
-  flagged diffs. Phase 2 may downgrade a flagged item; it cannot add passes.
+## Handling Returned Status
 
-**3. Gate on the verdict.** The task is complete ONLY when the final verdict is
-`Status: pass` AND every `in-scope` claim is `status: pass` with evidence. Any
-`fail` or `unverifiable` in-scope claim → re-dispatch the implementer with the
-specific failing claims, then re-review. Loop until the gate passes. Then run the
-code quality review (spec compliance always precedes quality), and once that also
-passes, the task is complete.
+Subagents must report one of:
 
-A structured `pass` without verifiable evidence (test name, command output, or
-`file:line`) does not satisfy the gate — treat it as `fail`. Prose is not evidence.
+- `DONE`
+- `DONE_WITH_CONCERNS`
+- `NEEDS_CONTEXT`
+- `BLOCKED`
 
-## Model Selection
+### `DONE`
 
-Use the least powerful model that can handle each role to conserve cost and increase speed.
+- proceed to review or verification
 
-**Mechanical implementation tasks** (isolated functions, clear specs, 1-2 files): use a fast, cheap model. Most implementation tasks are mechanical when the plan is well-specified.
+### `DONE_WITH_CONCERNS`
 
-**Integration and judgment tasks** (multi-file coordination, pattern matching, debugging): use a standard model.
+- read the concerns first
+- if correctness or scope is in doubt, resolve before review
+- if concerns are low-risk observations, note them and continue
 
-**Architecture, design, and review tasks**: use the most capable available model.
+### `NEEDS_CONTEXT`
 
-**Task complexity signals:**
-- Touches 1-2 files with a complete spec → cheap model
-- Touches multiple files with integration concerns → standard model
-- Requires design judgment or broad codebase understanding → most capable model
+- provide the missing context
+- re-dispatch with the updated prompt
 
-**Reviewer tier:** Dispatch the spec reviewer at a model tier at least as capable as
-the implementer's. A reviewer weaker than the implementer shares its blind spots and
-rubber-stamps the same misreadings; the adversarial value of review comes from the
-reviewer interpreting the spec independently, which a weaker model cannot reliably do.
+### `BLOCKED`
 
-## Handling Implementer Status
+- change something real before retrying: context, task split, subagent, or strategy
+- if the blocker needs owner input, use `forge:ask`
 
-Implementer subagents report one of four statuses. Handle each appropriately:
+Never force the same blocked subagent to retry with the same prompt.
 
-**DONE:** Proceed to spec compliance review.
+## Review Loop
 
-**DONE_WITH_CONCERNS:** The implementer completed the work but flagged doubts. Read the concerns before proceeding. If the concerns are about correctness or scope, address them before review. If they're observations (e.g., "this file is getting large"), note them and proceed to review.
+### Phase 1: spec / intent compliance
 
-**NEEDS_CONTEXT:** The implementer needs information that wasn't provided. Provide the missing context and re-dispatch.
+After implementation, review against the task intent first.
 
-**BLOCKED:** The implementer cannot complete the task. Assess the blocker:
-1. If it's a context problem, provide more context and re-dispatch with the same model
-2. If the task requires more reasoning, re-dispatch with a more capable model
-3. If the task is too large, break it into smaller pieces
-4. If the plan itself is wrong, escalate to the human
+- use covered spec / plan intent + diff evidence
+- do not accept prose without evidence
+- any in-scope `fail` or `unverifiable` item sends the task back for repair
 
-**Never** ignore an escalation or force the same model to retry without changes. If the implementer said it's stuck, something needs to change.
+### Phase 2: code quality review
 
-## Progress Snapshot
+Once the spec gate passes, review for:
 
-For plans with more than five tasks, produce a compact status snapshot after every
-major milestone or when the user asks "where are we?":
+- correctness gaps not covered by the spec
+- maintainability
+- performance footguns
+- test completeness
 
-```markdown
-Progress: T1-Tn done · Tm-Tz pending · <count> subagents dispatched
-Spec review: <passed>/<reviewed> passed · <failures> open
-Code quality: <passed>/<reviewed> passed · <failures> open
-Estimated remaining: <rough count> dispatches based on complexity tags
-```
+If review finds issues, re-dispatch the implementer with exact failing claims and then
+re-review. Do not move on with open review findings.
 
-Use `punchcard`, `git log --oneline`, and your task list as evidence. If the count is
-estimated, label it as estimated.
+## Verification Handoff
+
+Subagent success does not equal task completion.
+
+- implementation subagents may run targeted tests
+- Forge still owns the route-level completion gate
+- `forge:verify` remains the final pass/fail authority for delivery claims
 
 ## Tool Edit Fallback
 
-When an edit tool fails because context does not match, use this fallback chain. Do not
-repeat the same failed edit more than twice.
+When edit attempts fail due to context mismatch, use this order:
 
-1. Re-read the target file range in the current session.
-2. Try a smaller single-line edit.
-3. Try a narrower multi-line edit around stable anchors.
-4. Rewrite the whole file only if you have just read the full file and it is small enough.
-5. Use a small script only when the transformation is mechanical and reviewed.
-6. Ask via `forge:ask` if the safe path is unclear.
+1. re-read the exact file range
+2. try a smaller anchored edit
+3. try a narrower multi-line edit
+4. rewrite the full file only if it is small and freshly read
+5. ask or re-split the task if the safe path is unclear
 
-## Prompt Templates
-
-- `./implementer-prompt.md` - Dispatch implementer subagent
-- `./spec-reviewer-prompt.md` - Dispatch spec compliance reviewer (two-phase, evidence-gated verdict)
-- `./code-quality-reviewer-prompt.md` - Dispatch code quality reviewer subagent
+Do not repeat the same failed edit pattern more than twice.
 
 ## Dispatching Subagents — Tool Reference
 
-The `task` tool is the **only** way to spawn a subagent. Its schema:
+Use the OpenCode `task` tool exactly as supported:
 
-```
+```text
 task(
-  description: <3-5 word summary>,           // required
-  prompt: <full prompt text>,                // required, full task spec
-  subagent_type: <agent name>,               // required, use "general" by default
-  task_id: <existing session id>             // optional, ONLY for resuming prior subagent
-  background: <true/false>                   // optional, fire-and-forget
+  description: <3-5 word summary>,
+  prompt: <full prompt text>,
+  subagent_type: <agent name>,
+  task_id: <optional existing subagent session>,
+  background: <optional true/false>
 )
 ```
 
-**You do NOT** use any other syntax (no `task run`, no `task spawn`, no shell-style verbs). Read the `task` tool's own description at runtime for the exact current schema.
-
-**DO NOT** try to bind subagent calls to a T1/T1.1 work-item — there is no task-management tool. Just dispatch via `task` and track progress in your own context.
-
-## Example Workflow
-
-```
-You: I'm using Subagent-Driven Development to execute this plan.
-
-[Read plan file once: docs/forge/plans/feature-plan.md]
-[Extract all 5 tasks with full text and context]
-
-Task 1: Hook installation script
-
-[Get Task 1 text and context (already extracted)]
-[Build implementer prompt: scaffold + Task 1 text + Intent block (covered [Sn] sections)]
-[Dispatch via task tool: description="Implement hook install", prompt=<built prompt>, subagent_type="general"]
-
-Implementer: "Before I begin - should the hook be installed at user or system level?"
-
-You: "User level (~/.config/opencode/forge/hooks/)"
-[Re-dispatch with the answer added to the prompt]
-
-Implementer:
-  - Implemented install-hook command
-  - Added tests, 5/5 passing
-  - Self-review: Found I missed --force flag, added it
-  - Committed
-
-[Dispatch spec reviewer phase 1: spec sections + diff only, no report]
-Spec reviewer (phase 1):
-  Status: pass
-  Claims: [S1 · "install at user level"] in-scope · pass — evidence: test "installs to ~/.config" 5/5
-[Phase 1 all-pass → skip phase 2; gate passes]
-
-[Dispatch code quality reviewer]
-Code reviewer: Strengths: Good test coverage, clean. Issues: None. Approved.
-
-[Gate passed → Task 1 complete]
-
-Task 2: Recovery modes
-
-[Get Task 2 text and context]
-[Build implementer prompt with Intent for [S4] section]
-[Dispatch via task tool]
-
-Implementer: [No questions, proceeds]
-Implementer:
-  - Added verify/repair modes
-  - 8/8 tests passing
-  - Self-review: All good
-  - Committed
-
-[Dispatch spec reviewer phase 1: spec sections + diff only, no report]
-Spec reviewer (phase 1):
-  Status: fail
-  Claims:
-    - [S4 · "report every 100 items"] in-scope · fail — evidence: no progress code in diff (omission)
-    - [S4 · "verify/repair modes"] in-scope · pass — evidence: test "repairs index" 8/8
-  Extra work: --json flag (no covered claim requires it)
-[Phase 1 flagged items → dispatch phase 2 with report]
-Spec reviewer (phase 2): report gives no justification for --json; progress still missing — Status: fail
-[Gate blocks: in-scope fail]
-
-[Re-dispatch implementer with the failing claim: "add progress reporting, remove --json"]
-[Implementer fixes]
-[Re-dispatch phase 1]
-Spec reviewer (phase 1): Status: pass — all in-scope claims pass with evidence
-[Gate passes]
-
-[Dispatch code quality reviewer]
-Code reviewer: Strengths: Solid. Issues (Important): Magic number (100)
-
-[Re-dispatch implementer: "extract PROGRESS_INTERVAL constant"]
-[Implementer fixes]
-
-[Code reviewer reviews again]
-Code reviewer: ✅ Approved
-
-[Task 2 complete]
-
-...
-
-[After all tasks]
-[Dispatch final code-reviewer]
-Final reviewer: All requirements met, ready to merge
-
-Done!
-```
-
-## Advantages
-
-**vs. Manual execution:**
-- Subagents follow TDD naturally
-- Fresh context per task (no confusion)
-- Parallel-safe (subagents don't interfere)
-- Subagent can ask questions (before AND during work)
-
-**vs. Executing Plans:**
-- Same session (no handoff)
-- Continuous progress (no waiting)
-- Review checkpoints automatic
-
-**Efficiency gains:**
-- No file reading overhead (controller provides full text)
-- Controller curates exactly what context is needed
-- Subagent gets complete information upfront
-- Questions surfaced before work begins (not after)
-
-**Quality gates:**
-- Self-review catches issues before handoff
-- Two-stage review: spec compliance, then code quality
-- Review loops ensure fixes actually work
-- Spec compliance prevents over/under-building
-- Code quality ensures implementation is well-built
-
-**Cost:**
-- More subagent invocations (implementer + 2 reviewers per task)
-- Controller does more prep work (extracting all tasks upfront)
-- Review loops add iterations
-- But catches issues early (cheaper than debugging later)
+- prefer foreground tasks for work needed before continuing
+- use `background` only for truly independent long-running work
+- do not poll or duplicate a background task's work
 
 ## Red Flags
 
-**Never:**
-- Start implementation on main/master branch without explicit user consent
-- Skip reviews (spec compliance OR code quality)
-- Proceed with unfixed issues
-- Dispatch multiple implementation subagents in parallel (conflicts)
-- Make subagent read plan file (provide full text instead)
-- Skip scene-setting context (subagent needs to understand where task fits)
-- Ignore subagent questions (answer before letting them proceed)
-- Accept "close enough" on spec compliance (spec reviewer found issues = not done)
-- Skip review loops (reviewer found issues = implementer fixes = review again)
-- Let implementer self-review replace actual review (both are needed)
-- **Start code quality review before spec compliance is ✅** (wrong order)
-- Move to next task while either review has open issues
-- Pass the spec gate on a `status: pass` that has no verifiable evidence (test/exec/file:line)
-- Include the implementer's report in the phase-1 spec review context
-- Mark a task complete while any in-scope claim is `fail` or `unverifiable`
+Never:
 
-**If subagent asks questions:**
-- Answer clearly and completely
-- Provide additional context if needed
-- Don't rush them into implementation
+- default to `general` when a specialized subagent fits
+- dispatch implementation subagents in parallel on overlapping scope
+- make subagents rediscover a spec you already have
+- skip re-review after issues were found
+- treat subagent prose as evidence
+- confuse `task` with `punchcard`
+- mark a task complete while in-scope review claims still fail or are unverifiable
 
-**If reviewer finds issues:**
-- Implementer (same subagent) fixes them
-- Reviewer reviews again
-- Repeat until approved
-- Don't skip the re-review
+## Bottom Line
 
-**If subagent fails task:**
-- Apply the Trivial Fix Path above.
-- For non-trivial failures, dispatch a fix subagent with specific instructions.
-- Do not manually refactor uncertain or cross-module failures; that creates context pollution.
+Forge is the lead. Subagents are the team.
 
-## Integration
-
-**Required workflow skills:**
-- **forge:worktree** - Ensures isolated workspace (creates one or verifies existing)
-- **forge:plan** - Creates the plan this skill executes
-- **forge:review** - Code review template for reviewer subagents
-- **forge:merge** - Complete development after all tasks
-
-**Subagents should use:**
-- **forge:tdd** - Subagents follow TDD for each task
-
-**Important: Passing skills to subagents**
-
-Forge skills appear in subagents' `available_skills` list (the orchestrator's skill block is NOT inherited, but skills in `~/.config/opencode/forge-skills/` are global). If a subagent needs a specific skill, mention it explicitly in the subagent's prompt (e.g., "follow the forge:tdd skill for this task") and the subagent will invoke it.
-
-**Alternative workflow:**
-- **forge:execute** - Use for parallel session instead of same-session execution
+Delegate execution aggressively, but delegate with explicit boundaries, explicit
+evidence requirements, and explicit review gates.

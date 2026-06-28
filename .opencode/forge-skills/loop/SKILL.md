@@ -1,111 +1,120 @@
 ---
 name: forge:loop
 hidden: true
-description: Use when a task may need autonomous iteration, objective acceptance criteria, cross-step coordination, or recovery from failed verification
+description: Use when work needs an explicit delivery contract, iterative repair, bounded autonomy, or resume-safe state
 ---
 
 # Closed-Loop Delivery
 
 ## Overview
 
-Forge loop turns a request into a bounded delivery cycle: decide whether a loop is
-needed, define the acceptance rubric, execute, verify, and iterate until the rubric
-passes or a real blocker appears.
+Forge loop turns a request into a bounded engineering cycle with explicit state.
 
-**Core principle:** The loop is not "keep trying." It is a bounded system with a goal,
-rubric, evidence, memory checkpoints, and explicit stop conditions.
+**Core principle:** a loop is not "keep trying". A loop has a contract, evidence,
+budget, checkpoints, and stop conditions.
 
-## Auto-Start Decision
-
-Run this decision before choosing ordinary direct execution.
-
-```dot
-digraph loop_decision {
-  "New task" -> "Needs loop?";
-  "Needs loop?" -> "Use forge:loop" [label="yes"];
-  "Needs loop?" -> "Use normal skill flow" [label="no"];
-}
-```
+## When To Start A Loop
 
 Start `forge:loop` when ANY are true:
 
-- The task has 2+ steps, 2+ files, or cross-module effects.
-- Success depends on more than one command, test, or reviewer judgment.
-- Requirements are ambiguous enough to need an explicit acceptance rubric.
-- Verification may fail and require another implementation pass.
-- The task is delegated to subagents or uses `mission`-style autonomy.
-- The user asks for end-to-end delivery, productization, hardening, or "best practice".
+- the task has 2+ steps, 2+ files, or cross-module effects
+- success depends on multiple commands, reviews, or gates
+- requirements need an explicit acceptance rubric
+- verification may fail and require another pass
+- subagents will be used for execution or review
+- the user asks for end-to-end delivery, hardening, or best-practice implementation
 
-Do NOT start a loop when ALL are true:
+Do **not** start a loop when ALL are true:
 
-- Single-file trivial edit, typo, formatting, or documentation wording only.
-- No ambiguity, no review risk, and one verification command is enough.
-- The user explicitly asks for analysis or a plan only.
+- trivial single-file wording or formatting change only
+- one focused verification command is enough
+- the user explicitly wants analysis or planning only
 
-If unsure, start the loop. The first loop step can downgrade to normal flow.
+If unsure, start the loop and downgrade explicitly.
 
 ## Loop Contract
 
-Before executing work, establish this contract in your own context or via
-`forge-check` for larger tasks:
+Before execution, establish this contract in your working context and persist it with
+`forge-check` for non-trivial work:
 
 ```markdown
 Goal: <user outcome>
+Scope:
+- <what this iteration may change>
+Non-goals:
+- <what this iteration will not change>
 Rubric:
 - [ ] <objective acceptance criterion>
-- [ ] <constraint or non-goal>
+- [ ] <constraint, risk gate, or non-goal>
 Budget:
-- max_fix_iterations: <default 3 unless task requires otherwise>
+- max_fix_iterations: 3
 - used_fix_iterations: 0
-- remaining_fix_iterations: <max - used>
-Stop conditions: pass | blocked | owner decision required
+- remaining_fix_iterations: 3
+Stop conditions: pass | blocked | budget_exhausted | owner_decision_required
 ```
 
-Rubric items must be objective enough to verify with commands, diff evidence,
-reviewer verdicts, screenshots, logs, or explicit user approval.
+Rubric items must be verifiable by command output, file evidence, reviewer verdicts,
+screenshots, logs, or explicit owner approval.
 
 ## The Loop
 
-1. **Goal:** Restate the user outcome and boundary. If the goal is unclear, use
-   `forge:ask` with concrete options.
-2. **Rubric:** Derive acceptance criteria from the request, specs, plan, regression
-   symptoms, and relevant rules. Include non-goals to stop scope creep.
-3. **Discover:** Invoke `forge:discovery` for non-trivial work, or explicitly
-   downgrade with a one-line reason. Discovery output feeds the plan.
-4. **Plan:** Use `forge:plan` for multi-step work; otherwise keep a short local plan.
-5. **Execute:** Use the normal implementation skills (`forge:subagent`, `forge:tdd`,
-   `forge:debug`, or direct edits for trivial cases).
-6. **Verify:** Invoke `forge:verify`. The verdict must be `pass`, `fail`, or `blocked`
-   against the rubric.
-7. **Iterate:** If `fail`, increment `used_fix_iterations`, turn failed rubric items into
-   the next implementation prompt, execute, and verify again. If the budget is
-   exhausted, use `forge:ask` instead of continuing. If `blocked`, use `forge:ask` or
-   stop with the blocker.
-8. **Ship:** Only after a `pass` verdict, continue to `forge:report` or `forge:merge`.
+1. **Goal** — restate the requested outcome and boundary.
+2. **Scope / non-goals** — prevent scope creep up front.
+3. **Rubric** — define the acceptance gate before implementation.
+4. **Discover** — invoke `forge:discovery` for non-trivial work, or record why it was skipped.
+5. **Plan** — invoke `forge:plan` when multiple tasks or milestones exist.
+6. **Execute** — use `forge:subagent`, `forge:tdd`, `forge:debug`, or direct work for trivial cases.
+7. **Verify** — invoke `forge:verify`; verdict must be `pass`, `fail`, or `blocked`.
+8. **Iterate or ship** — `pass` ships; `fail` creates the next iteration prompt; `blocked` asks or stops.
+
+## Failure Handling Rules
+
+When verification fails:
+
+1. Increment `used_fix_iterations`.
+2. Convert failed rubric items into the next implementation prompt.
+3. Preserve already-passing rubric items.
+4. Change at least one variable: prompt, context, task split, subagent, implementation strategy, or verification path.
+5. Re-run verification after the fix.
+
+Do **not** repeat the same failed strategy with the same evidence.
+
+If `used_fix_iterations >= max_fix_iterations`:
+
+- do not keep thrashing
+- use `forge:ask`, downgrade scope, or stop with `budget_exhausted`
+- invoke `forge:reflect` when the loop closes
 
 ## Brainstorm Boundary
 
-- If the request is product/design ambiguous, use `forge:brainstorm` first and feed the
-  approved spec into this loop as Goal/Rubric input.
-- If requirements are clear, start the loop directly and derive the rubric yourself.
-- If no user is available, follow `forge:brainstorm` autonomous override and continue
-  with the best explicit assumptions. Record those assumptions in the rubric.
+- If product or design intent is ambiguous, run `forge:brainstorm` before the loop.
+- If requirements are clear, derive the rubric directly.
+- If no owner is available, continue only with explicit reversible assumptions and record them in the rubric.
 
 ## Memory Checkpoints
 
-Use `forge-check` at natural loop boundaries for non-trivial work. Put this schema in
-the checkpoint `details` body so another session can resume without guessing:
+`forge-check` is the durable loop memory. Use it at minimum for:
+
+- `loop-start`
+- every `verify-failed`
+- every major `iteration-N`
+- `ship-ready`
+
+Checkpoint schema:
 
 ```json
 {
   "stage": "loop-start | iteration-N | verify-failed | ship-ready",
+  "mode": "direct-downgraded | structured | loop",
   "goal": "<user outcome>",
+  "scope": ["<allowed change area>"],
+  "non_goals": ["<not changing>"],
   "rubric": [
     {
       "id": "R1",
       "text": "<criterion>",
       "status": "pending | pass | fail | blocked | out-of-scope",
-      "evidence": "<file:line/command/reviewer>"
+      "evidence": "<command/reviewer/file:line>"
     }
   ],
   "discovery": {
@@ -119,62 +128,62 @@ the checkpoint `details` body so another session can resume without guessing:
     "used_fix_iterations": 0,
     "remaining_fix_iterations": 3
   },
+  "current_stage": "discover | plan | execute | verify | iterate | ship",
   "current_task": "<what is being done now>",
-  "next_action": "<ship | iterate | ask | block>",
+  "next_action": "ship | iterate | ask | block | downgrade",
+  "last_failure": "<why the previous pass failed>",
+  "strategy_change": "<what changed this pass>",
   "blockers": ["<reason>"],
   "residual_risks": ["<risk>"]
 }
 ```
 
-Stages:
+Do not rely on chat memory for any field another session will need.
 
-- `loop-start`: goal, rubric, budget, initial plan
-- `iteration-N`: what changed in this pass
-- `verify-failed`: failed/unverifiable rubric items and next prompt
-- `ship-ready`: pass verdict, evidence, residual risks
+## Resume Protocol
 
-Note: `iteration-N` counts planning/execute/verify passes, not fix cycles. The
-fix-cycle budget lives in the JSON `budget` field and is separate from the
-stage counter.
+If the user asks to continue or resume:
 
-Resume protocol: if the user asks to resume or continue a loop, call
-`forge-check(operation="latest")`, reconstruct Goal/Rubric/Budget/Next action from the
-schema, and continue from `next_action`. If the checkpoint is missing schema fields,
-state what is missing before proceeding.
-
-Do not rely on chat memory for loop state that another session may need.
+1. call `forge:resume`
+2. reconstruct goal, rubric, budget, blockers, and next action from `forge-check`
+3. continue from `next_action`
+4. only re-run discovery or planning if the checkpoint is stale or missing required state
 
 ## Iteration Prompt Pattern
 
-When verification fails, write the next prompt from evidence, not vibes:
+Write iteration prompts from evidence, not vibes:
 
 ```markdown
 Continue the loop for <goal>.
 Failed rubric items:
-- <item> — evidence: <test/reviewer/file output>
+- <item> — evidence: <command/reviewer/file output>
+Preserve:
+- <already passing items>
 Constraints:
-- Preserve already-passing rubric items.
-- Do not expand scope beyond <non-goals>.
-Required verification after fix:
+- stay within <scope>
+- do not expand beyond <non-goals>
+Strategy change this pass:
+- <what is different now>
+Required verification:
 - <commands/review checks>
 ```
 
 ## Common Mistakes
 
 | Mistake | Fix |
-|---------|-----|
-| Starting a loop without a rubric | Define objective pass/fail criteria first |
-| Treating tests as the whole rubric | Include requirements, review, and risk gates |
+| --- | --- |
+| Starting implementation without a rubric | Define the loop contract first |
+| Treating tests as the whole gate | Include requirements, review, and risk criteria |
 | Asking "should I continue?" after a fail | Iterate automatically unless blocked |
-| Repeating the same failed approach | Change the prompt based on failure evidence |
-| Keeping loop state only in chat | Write `forge-check` checkpoints |
-| Letting open-ended tasks run forever | Set budget and stop conditions |
+| Repeating the same fix attempt | Change strategy based on failure evidence |
+| Keeping state only in chat | Write `forge-check` checkpoints |
+| Letting the loop run forever | Enforce budget and stop conditions |
 
 ## Relationship To Other Skills
 
-- **Before loop:** `forge:brainstorm` when product/design ambiguity exists.
-- **Inside loop:** `forge:discovery`, `forge:plan`, `forge:subagent`, `forge:tdd`, `forge:debug`.
-- **Loop gate:** `forge:verify` decides pass/fail/blocked.
-- **After pass:** `forge:report`, then `forge:merge` when integration is requested.
+- **Before loop:** `forge:brainstorm` when requirements are ambiguous
+- **Inside loop:** `forge:discovery`, `forge:plan`, `forge:subagent`, `forge:tdd`, `forge:debug`
+- **Loop gate:** `forge:verify`
+- **After close:** `forge:report`, `forge:merge`, `forge:reflect`
 
 If another skill has a stricter rule, follow the stricter rule.

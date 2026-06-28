@@ -73,6 +73,7 @@ permission:
 - 注意引入了不必要的重量级依赖
 
 输出格式 — 标准：
+Status: DONE | DONE_WITH_CONCERNS
 安全审查报告
 
 [P0-CRITICAL] 必须立即修复（影响生产安全）
@@ -87,6 +88,12 @@ permission:
 前提假设：[审查依赖的假设条件]
 待确认项：[需要与开发者确认的点]
 整体评价：[PASS / NEEDS WORK / BLOCKED]
+
+输出格式 — 无法确认时：
+Status: NEEDS_CONTEXT | BLOCKED
+风险点：[描述]
+缺失证据：[缺少哪些上下文、配置或调用链信息]
+建议：[下一步如何验证]
 
 整体评价标准：
 - PASS：无 P0-CRITICAL 和 P1-HIGH 问题
