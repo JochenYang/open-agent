@@ -21,6 +21,8 @@
 
 - Route = `Direct`
 - Forge 可直接读写并做最小验证
+- 不应出现无证据的全仓 discovery / 子代理扇出
+- 验证应与改动面成比例
 - 不应强制进入 `Loop`
 - 完成前仍需 `verify`
 
@@ -51,13 +53,16 @@
 
 期望：
 
-- 先走 `ask` 或 `brainstorm`
+- 若问题本质是设计分歧，应先走 `brainstorm`
+- 若出现主人决策点，必须通过 `forge:ask` / `question`，不能用普通提问收口
 - 不应直接进入实现
 - 若有多个方案，应先形成 spec 或决策记录
+- 若是无人值守且分歧可逆、低风险、范围内，可记录假设后继续
 
 通过标准：
 
 - Forge.md 明确要求决策与澄清走 `forge:ask`
+- Forge.md 明确禁止用 prose question 结束决策回合
 - FORGE_GUIDE.md 明确写出 `ask` 与 `brainstorm` 的触发条件
 
 ## 用例 4：跨模块、高不确定、可能多轮修复
@@ -70,12 +75,15 @@
 - 先建立 `Goal / Scope / Rubric / Budget`
 - 若 `verify` 失败，下一轮必须改变策略
 - 不允许原地重复同一失败路径
+- 未批准的 owner-only 决策不得直接进入执行
+- 可逆的设计假设可记录后继续，不应机械中断长时间 loop
 
 通过标准：
 
 - Forge.md 明确存在 `Loop Route`
 - Forge.md 明确有 doom-loop discipline 和 verify-failed strategy change
 - FORGE_GUIDE.md 明确写出 loop 的 contract 结构
+- FORGE_GUIDE.md 明确写出自治继续与 owner decision 的边界
 
 ## 用例 5：中断后继续
 

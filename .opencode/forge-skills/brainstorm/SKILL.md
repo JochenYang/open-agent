@@ -1,32 +1,36 @@
 ---
 name: forge:brainstorm
 hidden: true
-description: "You MUST use this before any creative work - creating features, building components, adding functionality, or modifying behavior. Explores user intent, requirements and design before implementation."
+description: "Use when implementation direction depends on unresolved product/design choices, multiple viable approaches, or owner approval on a design."
 ---
 
 # Brainstorming Ideas Into Designs
 
-Help turn ideas into fully formed designs and specs through natural collaborative dialogue.
+Brainstorm is Forge's design-convergence skill. Use it to turn ambiguity into an approved direction or a documented reversible assumption.
 
-Start by understanding the current project context, then ask questions one at a time to refine the idea. Once you understand what you're building, present the design and get user approval.
+It is not a mandatory prelude to every edit. Use the lightest design process that truthfully resolves the ambiguity.
+
+Start by understanding the smallest relevant project context, then narrow the design space, then present the proposed direction.
 
 <HARD-GATE>
-Do NOT invoke any implementation skill, write any code, scaffold any project, or take any implementation action until you have presented a design and the user has approved it. This applies to EVERY project regardless of perceived simplicity.
+Do NOT invoke any implementation skill, write any code, scaffold any project, or take any implementation action while unresolved design choices materially affect what will be built.
 
-**Autonomous override:** When no user is available to approve, this HARD-GATE does not apply: skip design presentation and approval, proceed directly to implementation, treating every approval gate as auto-approved.
+If owner input is available, present the design and route the approval/clarification checkpoint through `forge:ask`.
+
+**Autonomous continuation:** When no user is available, follow `forge:ask` semantics: continue only with the smallest safe reversible assumption inside scope, record it, and proceed. Do not invent approval for owner-only decisions.
 </HARD-GATE>
 
-## Anti-Pattern: "This Is Too Simple To Need A Design"
+## Anti-Pattern: Treating Brainstorm As Mandatory For Every Task
 
-Every project goes through this process. A todo list, a single-function utility, a config change — all of them. "Simple" projects are where unexamined assumptions cause the most wasted work. The design can be short (a few sentences for truly simple projects), but you MUST present it and get approval.
+Do not force a full brainstorming workflow onto trivial, fully specified, low-risk edits. If requirements are already concrete and implementation-local, route to Direct, Plan, or Loop instead.
 
-**Autonomous override:** When no user is available, skip this anti-pattern guidance — proceed directly to exploring context and implementing; do not present a design for approval.
+Use brainstorm when the open question is genuinely about design, behavior, or architecture — not when the task merely needs file reading.
 
 ## Checklist
 
-You MUST create a task for each of these items and complete them in order:
+Use the following sequence as needed. Scale it to ambiguity and risk; do not manufacture ceremony.
 
-**Autonomous mode (no user available):** Skip steps 2–8. Only do: explore project context (step 1) → implement directly (invoke forge:plan or forge:execute). Do NOT present a design, ask questions, write a spec, or wait for approval.
+**Autonomous mode (no user available):** Still converge the design, but keep it minimal. Ask only the questions that would materially change the implementation. For reversible in-scope decisions, record the assumption and continue rather than blocking.
 
 1. **Explore project context** — check files, docs, recent commits. For changes that
    may touch 2+ files or shared contracts, invoke `forge:discovery` (D1 depth) first
@@ -34,13 +38,13 @@ You MUST create a task for each of these items and complete them in order:
    impact surface, not guesses. This discovery can be reused by a later loop
    or plan if the work proceeds beyond brainstorm.
 2. **Offer visual companion** (if topic will involve visual questions) — this is its own message, not combined with a clarifying question. See the Visual Companion section below.
-3. **Ask clarifying questions** — one at a time, understand purpose/constraints/success criteria
+3. **Ask clarifying questions** — via `forge:ask`, one at a time, to understand purpose/constraints/success criteria
 4. **Propose 2-3 approaches** — with trade-offs and your recommendation
-5. **Present design** — in sections scaled to their complexity, get user approval after each section
+5. **Present design** — in sections scaled to complexity, and use `forge:ask` for checkpoints that materially change implementation direction
 6. **Write design doc** (optional, multi-step features only) — save to `docs/forge/specs/YYYY-MM-DD-<topic>-design.md` and commit. For single-step fixes or small changes, keep the design in conversation context only.
 7. **Spec self-review** (if doc written) — quick inline check for placeholders, contradictions, ambiguity, scope (see below)
 8. **User reviews written spec** (if doc written) — ask user to review the spec file before proceeding
-9. **Transition to implementation** — invoke forge:plan to create implementation plan
+9. **Transition to implementation** — once design risk is closed, invoke `forge:plan` or feed the result into `forge:loop`
 
 ## Process Flow
 
@@ -94,6 +98,8 @@ mcp-builder, or any other implementation skill directly.
   change likely spans 2+ files or shared contracts, run `forge:discovery` (D1) to
   ground your questions in the real impact surface — this discovery can be reused
   by a later loop or plan.
+- If discovery shows the task is already fully specified and there is no meaningful
+  design space left, exit brainstorm and route back to Direct, Plan, or Loop.
 - Before asking detailed questions, assess scope: if the request describes multiple independent subsystems (e.g., "build a platform with chat, file storage, billing, and analytics"), flag this immediately. Don't spend questions refining details of a project that needs to be decomposed first.
 - If the project is too large for a single spec, help the user decompose into sub-projects: what are the independent pieces, how do they relate, what order should they be built? Then brainstorm the first sub-project through the normal design flow. Each sub-project gets its own spec → plan → implementation cycle.
 - For appropriately-scoped projects, ask questions one at a time to refine the idea

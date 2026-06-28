@@ -13,6 +13,8 @@ Forge loop turns a request into a bounded engineering cycle with explicit state.
 **Core principle:** a loop is not "keep trying". A loop has a contract, evidence,
 budget, checkpoints, and stop conditions.
 
+Loops are autonomous by default. They should keep moving unless an owner-only decision or a real external blocker makes safe continuation impossible.
+
 ## When To Start A Loop
 
 Start `forge:loop` when ANY are true:
@@ -87,9 +89,10 @@ If `used_fix_iterations >= max_fix_iterations`:
 
 ## Brainstorm Boundary
 
-- If product or design intent is ambiguous, run `forge:brainstorm` before the loop.
-- If requirements are clear, derive the rubric directly.
-- If no owner is available, continue only with explicit reversible assumptions and record them in the rubric.
+- If open design space materially changes implementation direction, converge it through `forge:brainstorm` before `execute`.
+- `forge:ask` is a decision protocol, not an automatic human-blocking pause. If no owner is available and the choice is reversible, in-scope, and low-risk, choose the smallest safe option, record it in the contract/checkpoint, and continue.
+- Escalate to `owner_decision_required` only for irreversible, high-risk, or out-of-scope decisions that cannot be safely auto-resolved.
+- If requirements are already clear enough to define a truthful rubric, derive the rubric directly and keep the loop moving.
 
 ## Memory Checkpoints
 

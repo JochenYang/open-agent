@@ -51,7 +51,7 @@ Do not run D2 by default. Escalate only when D0/D1 cannot bound the risk.
 - Module coupling or cycles: use `dep-graph`.
 - Public type/API changes: use `schema-diff`.
 - Cleanup/refactor candidates: use `dead-code`.
-- Broad unfamiliar areas: dispatch `Explore` or `explore` subagent with a focused query.
+- Broad unfamiliar areas: dispatch `Explore` or `explore` subagent with a focused query for evidence gathering only; discovery does not replace design convergence or owner approval.
 - Security/auth/payment/PII: dispatch `Guard` or load the security skill before action.
 - DB schema/query changes: dispatch `DBA` or use DB-focused tools first.
 
@@ -69,13 +69,15 @@ Impact surface:
 - <callers/contracts/tests/docs likely affected>
 Constraints:
 - <rules, conventions, non-goals, compatibility notes>
+Decision surface:
+- <none | reversible assumption | owner decision required>
 Risks:
 - <risk level: low|medium|high> - <reason>
-Recommended next skill: forge:brainstorm | forge:plan | forge:subagent | forge:tdd | forge:debug | normal flow
+Recommended next skill: forge:brainstorm | forge:ask | forge:plan | forge:subagent | forge:tdd | forge:debug | normal flow
 ```
 
 If evidence is insufficient, say exactly what is missing and either gather it or
-block with `forge:ask`. Do not convert guesses into plan requirements.
+block with `forge:ask`. If the real gap is a decision rather than evidence, stop discovering and route to `forge:brainstorm` or `forge:ask`. Do not convert guesses into plan requirements.
 
 ## Loop Integration
 
@@ -85,6 +87,7 @@ When called from `forge:loop`:
 2. Add discovery output to `loop-start` or `iteration-N` checkpoint details.
 3. On later iterations, re-run only for files/contracts touched by failed rubric items.
 4. If discovery finds the task is trivial, downgrade the loop to normal flow and state why.
+5. If discovery reveals open design space or an owner-only decision, route to `forge:brainstorm` / `forge:ask` before execution rather than substituting more search.
 
 ## Common Mistakes
 
@@ -102,3 +105,5 @@ When called from `forge:loop`:
 Discovery ends when the next implementation or planning step can name its relevant
 files, constraints, impact surface, and verification targets. If it cannot, discovery
 is not done.
+
+If the blocker is no longer missing evidence but unresolved design or owner choice, discovery is done and the next step is `forge:brainstorm` or `forge:ask`.
