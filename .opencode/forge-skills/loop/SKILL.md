@@ -58,12 +58,23 @@ Stop conditions: pass | blocked | budget_exhausted | owner_decision_required
 Rubric items must be verifiable by command output, file evidence, reviewer verdicts,
 screenshots, logs, or explicit owner approval.
 
+## Approval-First Loop Entry
+
+When the user asks for route selection, a loop contract, or approval before any modification:
+
+1. gather only the smallest evidence needed to justify the route and contract
+2. output the route, why not the lighter route when relevant, the loop contract, and one highest-priority owner decision
+3. stop and wait for approval
+4. defer full discovery, planning, dispatch, and execution until approval is granted, unless no user is available and `forge:ask` rules allow autonomous continuation
+
+This applies even when the truthful route is clearly Loop.
+
 ## The Loop
 
 1. **Goal** — restate the requested outcome and boundary.
 2. **Scope / non-goals** — prevent scope creep up front.
 3. **Rubric** — define the acceptance gate before implementation.
-4. **Discover** — invoke `forge:discovery` for non-trivial work, or record why it was skipped.
+4. **Discover** — after contract approval, invoke `forge:discovery` for non-trivial work, or record why it was skipped.
 5. **Plan** — invoke `forge:plan` when multiple tasks or milestones exist.
 6. **Execute** — use `forge:subagent`, `forge:tdd`, `forge:debug`, or direct work for trivial cases.
 7. **Verify** — invoke `forge:verify`; verdict must be `pass`, `fail`, or `blocked`.
@@ -93,6 +104,7 @@ If `used_fix_iterations >= max_fix_iterations`:
 - `forge:ask` is a decision protocol, not an automatic human-blocking pause. If no owner is available and the choice is reversible, in-scope, and low-risk, choose the smallest safe option, record it in the contract/checkpoint, and continue.
 - Escalate to `owner_decision_required` only for irreversible, high-risk, or out-of-scope decisions that cannot be safely auto-resolved.
 - If requirements are already clear enough to define a truthful rubric, derive the rubric directly and keep the loop moving.
+- Do not let pre-approval discovery grow into implementation-level analysis. Before approval, discovery only exists to support route truthfulness, contract truthfulness, and the immediate decision checkpoint.
 
 ## Memory Checkpoints
 

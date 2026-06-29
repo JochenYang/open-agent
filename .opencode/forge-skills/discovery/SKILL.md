@@ -43,6 +43,28 @@ Choose the cheapest depth that can falsify your assumptions.
 
 Do not run D2 by default. Escalate only when D0/D1 cannot bound the risk.
 
+## Approval-First Evidence Fuse
+
+When the surrounding task is route selection, contract establishment, or approval-before-execution, discovery enters approval-first mode.
+
+In this mode:
+
+- default to D0 and escalate only to the narrowest D1 slice
+- read user-named files first before expanding anywhere else
+- read only enough files to justify the route, the proposal/contract, and the immediate constraints
+- do not expand into execution-level research before approval
+- sufficiency beats completeness
+
+### Fuse criteria
+
+Discovery MUST stop immediately once all three are true:
+
+1. you can explain why the task is not Direct or why the chosen route is truthful
+2. you can draft the minimum proposal / contract / execution boundary
+3. you can name the first highest-priority owner decision, or truthfully say none is needed
+
+After the fuse criteria are met, additional reading is a violation, not extra rigor.
+
 ## Tool Routing
 
 - File names: use `glob`.
@@ -79,6 +101,8 @@ Recommended next skill: forge:brainstorm | forge:ask | forge:plan | forge:subage
 If evidence is insufficient, say exactly what is missing and either gather it or
 block with `forge:ask`. If the real gap is a decision rather than evidence, stop discovering and route to `forge:brainstorm` or `forge:ask`. Do not convert guesses into plan requirements.
 
+For approval-first tasks, do not chase repository-wide completeness. Discovery is successful when the route/proposal is supportable, not when the repo has been exhaustively mapped.
+
 ## Loop Integration
 
 When called from `forge:loop`:
@@ -88,6 +112,8 @@ When called from `forge:loop`:
 3. On later iterations, re-run only for files/contracts touched by failed rubric items.
 4. If discovery finds the task is trivial, downgrade the loop to normal flow and state why.
 5. If discovery reveals open design space or an owner-only decision, route to `forge:brainstorm` / `forge:ask` before execution rather than substituting more search.
+6. If the loop is not yet approved, discovery is capped at route/contract support only and must stop once that support exists.
+7. Approval-first discovery must never turn into a repository audit or an implementation plan draft.
 
 ## Common Mistakes
 
@@ -99,6 +125,8 @@ When called from `forge:loop`:
 | Ignoring public contracts | Check callers, exports, schemas, and docs |
 | Running heavy tools for tiny edits | Downgrade to D0 and preserve speed |
 | Skipping risk labels | Mark low/medium/high so verify knows what to test |
+| Turning route judgment into repo audit | Stop once route/contract truth is evidence-backed |
+| Reading for completeness after the route is already clear | Trigger the evidence fuse and stop |
 
 ## Stop Rule
 
@@ -107,3 +135,5 @@ files, constraints, impact surface, and verification targets. If it cannot, disc
 is not done.
 
 If the blocker is no longer missing evidence but unresolved design or owner choice, discovery is done and the next step is `forge:brainstorm` or `forge:ask`.
+
+For approval-first turns, discovery ends as soon as the route, contract, or proposal is evidence-backed enough to present truthfully. Do not continue reading for completeness once the evidence fuse is satisfied.

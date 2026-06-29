@@ -26,21 +26,34 @@ Do not force a full brainstorming workflow onto trivial, fully specified, low-ri
 
 Use brainstorm when the open question is genuinely about design, behavior, or architecture — not when the task merely needs file reading.
 
+## Default Shape For A Brainstorm Turn
+
+When user input is available, a normal brainstorm turn should usually be:
+
+1. smallest relevant context
+2. 2-3 approaches
+3. one recommendation
+4. one `forge:ask` approval or decision checkpoint
+5. stop
+
+Do not stretch a single brainstorm turn into section-by-section approvals unless the user explicitly asks for staged review, or there are multiple independent owner decisions that cannot be truthfully collapsed into one checkpoint.
+
+If additional owner decisions remain after choosing the highest-priority one, do not ask them in the same turn. Emit them as:
+
+- `assumptions` for reversible, low-risk defaults
+- `deferred decisions` for real open questions that can wait
+
 ## Checklist
 
 Use the following sequence as needed. Scale it to ambiguity and risk; do not manufacture ceremony.
 
 **Autonomous mode (no user available):** Still converge the design, but keep it minimal. Ask only the questions that would materially change the implementation. For reversible in-scope decisions, record the assumption and continue rather than blocking.
 
-1. **Explore project context** — check files, docs, recent commits. For changes that
-   may touch 2+ files or shared contracts, invoke `forge:discovery` (D1 depth) first
-   so your clarifying questions and proposed approaches are grounded in the real
-   impact surface, not guesses. This discovery can be reused by a later loop
-   or plan if the work proceeds beyond brainstorm.
+1. **Explore project context** — check only the smallest relevant files, docs, or recent commits. Default to D0. For changes that may touch 2+ files or shared contracts, invoke `forge:discovery` (D1 depth) only when that evidence will materially change the options or recommendation. This discovery can be reused by a later loop or plan if the work proceeds beyond brainstorm.
 2. **Offer visual companion** (if topic will involve visual questions) — this is its own message, not combined with a clarifying question. See the Visual Companion section below.
-3. **Ask clarifying questions** — via `forge:ask`, one at a time, to understand purpose/constraints/success criteria
+3. **Ask clarifying questions** — via `forge:ask`, one at a time, and only until one material design checkpoint can be framed
 4. **Propose 2-3 approaches** — with trade-offs and your recommendation
-5. **Present design** — in sections scaled to complexity, and use `forge:ask` for checkpoints that materially change implementation direction
+5. **Present design** — present the full proposed direction, then use one `forge:ask` checkpoint for the highest-impact unresolved decision; stop unless the user explicitly requested staged review
 6. **Write design doc** (optional, multi-step features only) — save to `docs/forge/specs/YYYY-MM-DD-<topic>-design.md` and commit. For single-step fixes or small changes, keep the design in conversation context only.
 7. **Spec self-review** (if doc written) — quick inline check for placeholders, contradictions, ambiguity, scope (see below)
 8. **User reviews written spec** (if doc written) — ask user to review the spec file before proceeding
@@ -57,7 +70,7 @@ digraph brainstorm {
     "Offer Visual Companion\n(own message, no other content)" [shape=box];
     "Ask clarifying questions" [shape=box];
     "Propose 2-3 approaches" [shape=box];
-    "Present design sections" [shape=box];
+    "Present proposed direction" [shape=box];
     "User approves design?" [shape=diamond];
     "Write design doc" [shape=box];
     "Spec self-review\n(fix inline)" [shape=box];
@@ -72,9 +85,9 @@ digraph brainstorm {
     "Visual questions ahead?" -> "Ask clarifying questions" [label="no"];
     "Offer Visual Companion\n(own message, no other content)" -> "Ask clarifying questions";
     "Ask clarifying questions" -> "Propose 2-3 approaches";
-    "Propose 2-3 approaches" -> "Present design sections";
-    "Present design sections" -> "User approves design?";
-    "User approves design?" -> "Present design sections" [label="no, revise"];
+    "Propose 2-3 approaches" -> "Present proposed direction";
+    "Present proposed direction" -> "User approves design?";
+    "User approves design?" -> "Present proposed direction" [label="no, revise"];
     "User approves design?" -> "Write design doc" [label="yes"];
     "Write design doc" -> "Spec self-review\n(fix inline)";
     "Spec self-review\n(fix inline)" -> "User reviews spec?";
@@ -100,9 +113,11 @@ mcp-builder, or any other implementation skill directly.
   by a later loop or plan.
 - If discovery shows the task is already fully specified and there is no meaningful
   design space left, exit brainstorm and route back to Direct, Plan, or Loop.
+- If the user asked for a compare-and-decide turn only, stop after the first material recommendation + approval checkpoint. Do not drift into plan writing, spec writing, or follow-on approvals in the same turn.
+- If more than one owner decision exists, choose the single highest-leverage one for this turn and classify the rest as `deferred decisions`.
 - Before asking detailed questions, assess scope: if the request describes multiple independent subsystems (e.g., "build a platform with chat, file storage, billing, and analytics"), flag this immediately. Don't spend questions refining details of a project that needs to be decomposed first.
 - If the project is too large for a single spec, help the user decompose into sub-projects: what are the independent pieces, how do they relate, what order should they be built? Then brainstorm the first sub-project through the normal design flow. Each sub-project gets its own spec → plan → implementation cycle.
-- For appropriately-scoped projects, ask questions one at a time to refine the idea
+- For appropriately-scoped projects, ask the minimum number of questions needed to frame one material decision
 - When the question has a known set of likely answers, use `forge:ask` with those answers as options
 - For open-ended questions, use `forge:ask` with 2-3 suggested answers as options — the user can always type their own answer
 - If no user is available, make reasonable assumptions from project context and proceed
@@ -119,16 +134,18 @@ mcp-builder, or any other implementation skill directly.
 
 - Once you believe you understand what you're building, present the design
 - Scale each section to its complexity: a few sentences if straightforward, up to 200-300 words if nuanced
-- After presenting each section, use `forge:ask`:
-  - header: `Design Review`
-  - question: `Does this <section-name> look right?`
+- After presenting the proposed direction, use one `forge:ask` checkpoint for the highest-impact unresolved decision:
+  - header: `Design Decision`
+  - question: `Does this proposed direction look right?`
   - options:
-    - label: `Looks good`, description: `Approve and continue`
-    - label: `Needs changes`, description: `I have feedback`
+    - label: `Approve`, description: `Use this direction`
+    - label: `Revise`, description: `I want changes`
 
   If no user is available, treat as approved and continue.
 - Cover: architecture, components, data flow, error handling, testing
 - Be ready to go back and clarify if something doesn't make sense
+- After the decision checkpoint, stop. Do not stack a second approval, planning checkpoint, or implementation kickoff in the same brainstorm turn unless the user explicitly requested staged review.
+- If there are remaining open items, list them under `assumptions` or `deferred decisions` instead of asking again.
 
 **Design for isolation and clarity:**
 

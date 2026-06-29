@@ -110,27 +110,27 @@ graph TB
 
 19 个 SKILL.md 散布在 `.opencode/forge-skills/`，由 Forge agent 用 `skill` 工具按需加载。Skill 自带"何时该用 / 何时不该用 / 检查清单 / 反例"四段式说明。
 
-| 阶段   | Skill        | 作用                                                        |
-|--------|--------------|-------------------------------------------------------------|
-| 探索   | `brainstorm` | 任何需要创意/方案的工作前先跑，输出可签字的 spec             |
-| 探索   | `ask`        | 决策、澄清、审批的统一入口；无人值守时自动决策                 |
-| 编排   | `loop`       | 自动判断是否启动闭环，定义 rubric，并按 verify 结果 ship 或 iterate |
-| 编排   | `resume`     | 从最近 forge-check checkpoint 重建 loop 状态，跨会话续跑，不靠聊天记忆 |
-| 探索   | `discovery`  | 计划或实现前探查最小代码切片、影响面、约束与风险               |
-| 规划   | `plan`       | 把 spec 拆成多步任务，写成可执行 plan                        |
+| 阶段   | Skill        | 作用                                                                  |
+|--------|--------------|-----------------------------------------------------------------------|
+| 探索   | `brainstorm` | 当实现方向仍有设计分歧时用于收敛方案，必要时输出可签字的 spec          |
+| 探索   | `ask`        | 决策、澄清、审批的统一入口；禁止用普通提问替代正式决策协议               |
+| 编排   | `loop`       | 自动判断是否启动闭环，定义 rubric，并按 verify 结果 ship 或 iterate     |
+| 编排   | `resume`     | 从最近 forge-check checkpoint 重建 loop 状态，跨会话续跑，不靠聊天记忆  |
+| 探索   | `discovery`  | 计划或实现前探查最小代码切片、影响面、约束与风险                        |
+| 规划   | `plan`       | 把 spec 拆成多步任务，写成可执行 plan                                  |
 | 执行   | `subagent`   | 通过 `task` 派发独立 subagent，独立任务同一响应并行发出，强制两阶段评审 |
-| 执行   | `execute`    | 在新 session 中执行已写好的 plan，带 review checkpoint       |
-| 执行   | `tdd`        | 强制 RED-GREEN-REFACTOR-VERIFY，禁止跳测试                   |
-| 执行   | `parallel`   | 2+ 个互不依赖任务的并行调度模板                             |
-| 验证   | `verify`     | 声称"完成 / 通过 / 修好"前必须跑的证据采集                  |
-| 验证   | `review`     | 主干完成或合并前的综合 review                               |
-| 验证   | `debug`      | bug / 测试失败 / 异常行为时优先调用                         |
-| 协作   | `feedback`   | 收到 code review 反馈时的核实与回应流程                     |
-| 协作   | `worktree`   | 隔离工作区，避免污染当前分支                                 |
-| 收尾   | `merge`      | 实现完成、测试通过后选择合并 / PR / 清理                     |
-| 收尾   | `report`     | 多次 spec 迭代后合并出最终态报告并沉淀 lesson               |
-| 收尾   | `reflect`    | ship 或预算耗尽后复盘失败模式，沉淀改进候选到 checkpoint      |
-| 元能力 | `new-skill`  | 新建 / 修改 skill，含 subagent 验证流程                      |
+| 执行   | `execute`    | 在新 session 中执行已写好的 plan，带 review checkpoint                 |
+| 执行   | `tdd`        | 强制 RED-GREEN-REFACTOR-VERIFY，禁止跳测试                             |
+| 执行   | `parallel`   | 2+ 个互不依赖任务的并行调度模板                                       |
+| 验证   | `verify`     | 声称"完成 / 通过 / 修好"前必须跑的证据采集                            |
+| 验证   | `review`     | 主干完成或合并前的综合 review                                         |
+| 验证   | `debug`      | bug / 测试失败 / 异常行为时优先调用                                   |
+| 协作   | `feedback`   | 收到 code review 反馈时的核实与回应流程                               |
+| 协作   | `worktree`   | 隔离工作区，避免污染当前分支                                           |
+| 收尾   | `merge`      | 实现完成、测试通过后选择合并 / PR / 清理                               |
+| 收尾   | `report`     | 多次 spec 迭代后合并出最终态报告并沉淀 lesson                         |
+| 收尾   | `reflect`    | ship 或预算耗尽后复盘失败模式，沉淀改进候选到 checkpoint               |
+| 元能力 | `new-skill`  | 新建 / 修改 skill，含 subagent 验证流程                                |
 
 ---
 
@@ -140,7 +140,7 @@ graph TB
 
 | Subagent      | 色相 | 读写 | 专长                                                        | 典型调用               |
 |---------------|------|------|-------------------------------------------------------------|------------------------|
-| **Explore**   | 青   | 只读 | AST 结构化代码搜索（基于 ast-grep），不分析只定位                | 派专长前的地形情报       |
+| **Explore**   | 青   | 只读 | AST 结构化代码搜索（基于 ast-grep），不分析只定位              | 派专长前的地形情报     |
 | **Reviewer**  | 堇   | 只读 | 代码审查（正确性 / 性能 / 并发 / 边界 / 可维护性 / 测试缺口） | 合并前质量门           |
 | **Guard**     | 赤   | 只读 | 安全专项（认证 / 授权 / 密钥 / PII / 支付 / 注入 / 访问控制） | 涉及 auth / 支付 / PII |
 | **Detective** | 橙   | 只读 | Bug 复现、根因定位、状态分叉追踪、最小修复建议                 | 排查报错、复现          |
@@ -156,24 +156,24 @@ graph TB
 
 ### 自定义工具（`.opencode/tools/`）
 
-| 工具                  | 作用                                                        | 多语言支持                            |
-|-----------------------|-------------------------------------------------------------|---------------------------------------|
-| **`dep-graph`**       | 模块依赖图、循环依赖检测、耦合热点、架构分层校验               | TS/JS · Python · Go · C# · Rust       |
-| **`dead-code`**       | 跨语言无用导出检测（无被依赖模块）                            | TS/JS · Python · Go · C# · Rust · C++ |
-| **`schema-diff`**     | git ref 间的类型契约语义对比，区分 BREAKING / SAFE / WARNING | TS/JS · Python · Go · C# · Rust       |
-| **`git-conventions`** | 提交信息与分支命名规范校验，返回完整规约文档                 | —                                     |
-| **`vision`**          | 调用外部视觉模型识别本地图像                                | 兼容 OpenAI / MiniMax                 |
+| 工具                  | 作用                                                                    | 多语言支持                                                       |
+|-----------------------|-------------------------------------------------------------------------|------------------------------------------------------------------|
+| **`dep-graph`**       | 模块依赖图、循环依赖检测、耦合热点、架构分层校验                           | TS/JS · Python · Go · C# · Rust                                  |
+| **`dead-code`**       | 跨语言无用导出检测（无被依赖模块）                                        | TS/JS · Python · Go · C# · Rust · C++                            |
+| **`schema-diff`**     | git ref 间的类型契约语义对比，区分 BREAKING / SAFE / WARNING             | TS/JS · Python · Go · C# · Rust                                  |
+| **`git-conventions`** | 提交信息与分支命名规范校验，返回完整规约文档                             | —                                                                |
+| **`vision`**          | 调用外部视觉模型识别本地图像                                            | 兼容 OpenAI / MiniMax                                            |
 | **`codesearch`**      | 基于 ast-grep 的 AST 结构化代码搜索（class $NAME / async function $F 等） | TS/JS · Py · Rust · Go · Java · C/C++ · C# · CSS · HTML · 20+ 种 |
 
 ### Plugin（`.opencode/plugins/`）
 
-| Plugin                                 | 作用                                                              |
-|----------------------------------------|-------------------------------------------------------------------|
+| Plugin                                 | 作用                                                               |
+|----------------------------------------|--------------------------------------------------------------------|
 | **`forge-plugin.js`**                  | 注入 Forge 体系运行时（`punchcard` / `forge-check` / `forge-skill`） |
-| **`notification-plugin.js`**           | 长任务 / mission 完成时本地通知                                   |
-| **`opencode-mission.js`**              | Mission 自治模式：下达带 turn/token/wallclock 预算的长任务         |
-| **`vision-helper.ts`**                 | `vision` 工具的运行时支持                                         |
-| `@franlol/opencode-md-table-formatter` | npm 引入的 Markdown 表格美化器                                    |
+| **`notification-plugin.js`**           | 长任务 / mission 完成时本地通知                                    |
+| **`opencode-mission.js`**              | Mission 自治模式：下达带 turn/token/wallclock 预算的长任务          |
+| **`vision-helper.ts`**                 | `vision` 工具的运行时支持                                          |
+| `@franlol/opencode-md-table-formatter` | npm 引入的 Markdown 表格美化器                                     |
 
 ### MCP 服务
 
@@ -388,10 +388,10 @@ open-agent/
 
 ### 三个不可让步的原则
 
-| 原则         | 实现                                                                                    |
-|--------------|-----------------------------------------------------------------------------------------|
-| **证据优先** | 任何非显然结论必须自标 L1–L4 证据等级；L3/L4 必须给出验证路径（`rules/evidence-first.md`） |
-| **职责分离** | Forge 只调度、subagent 只做本职、reviewer 不写代码、ask 不替用户做决定                     |
+| 原则         | 实现                                                                                                 |
+|--------------|------------------------------------------------------------------------------------------------------|
+| **证据优先** | 任何非显然结论必须自标 L1–L4 证据等级；L3/L4 必须给出验证路径（`rules/evidence-first.md`）              |
+| **职责分离** | Forge 只调度、subagent 只做本职、reviewer 不写代码、ask 不替用户做决定                                  |
 | **完成定义** | 未跑 verify 不算完成；verify 必须基于验收 rubric 全通过；失败项进入下一轮闭环；两阶段评审未通过不算合格 |
 
 ---

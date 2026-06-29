@@ -72,6 +72,58 @@ Default mapping:
 
 Predicates may coexist. Apply the strictest relevant governance boundary first, then choose the lightest route that remains truthful.
 
+## Approval-First Narrow Mode
+
+When the user asks for route judgment, a proposal/contract, scope/rubric/budget before execution, says "do not modify yet", or requires approval before continuing, switch into approval-first narrow mode.
+
+This is a hard state, not a soft preference. Narrow mode limits execution depth but does not change route truthfulness: you may still judge that the correct route is Loop or Brainstorm, but you must not expand into full delivery before approval.
+
+### Narrow mode output contract
+
+In narrow mode, produce only:
+
+- the route judgment
+- why not the lighter route when relevant
+- the requested proposal / contract / execution boundary
+- at most one highest-priority owner decision
+- stop
+
+### Narrow mode negative constraints
+
+In narrow mode, you MUST NOT:
+
+- recursively scan the repo root or workspace root
+- perform package inventory, broad directory sweeps, or repo-wide discovery as a first step
+- read `node_modules`, build outputs, caches, or unrelated dependency folders
+- expand beyond user-named files before reading those files first
+- use broad root-level `glob` / `grep` / search when a user-named file or obvious local entrypoint exists
+- call `forge:plan`, `task`, `punchcard`, `forge-check`, or dispatch subagents before approval
+- continue into implementation-level analysis once the route/proposal is truthfully supported
+- ask a second owner question in the same turn
+
+### Narrow mode tool budget
+
+Before approval, spend at most 3 read-only tool calls unless the user explicitly authorizes deeper discovery.
+
+Default budget order:
+
+1. user-named file(s)
+2. one adjacent contract/caller file if required
+3. one targeted search to close a critical gap
+
+If the budget is exhausted, either:
+
+- present the smallest truthful route/proposal with explicit gaps, or
+- ask the user for permission to expand the evidence budget
+
+Do not silently keep reading.
+
+### Narrow mode exit condition
+
+Stop immediately once the route, the why-not-lighter-route explanation, the proposal/contract, and one highest-priority decision checkpoint are ready to present truthfully.
+
+If no owner decision is needed, present the proposal and stop. If `eligible_for_direct` is true and there is no approval-first signal, stay on the normal Direct path — narrow mode does not apply.
+
 ## Non-Trivial Work: Loop First
 
 Skip-to-implementation is denied for non-trivial work.
@@ -171,6 +223,23 @@ Rule of thumb: **analysis can fan out; implementation is serial by default**.
 `forge:ask` is the decision protocol for all decisions, clarifications, and approvals.
 
 Do not end a decision or approval turn with a natural-language question. Use `forge:ask`, or continue autonomously under the ask rules when no user is available.
+
+## Single-Decision Protocol
+
+Default to one highest-priority approval or decision checkpoint per turn.
+
+- One turn may contain at most one `forge:ask` / `question` call.
+- One `question` call may address only one concern. Multiple options are allowed only when they answer that single concern.
+- After that checkpoint, stop the turn.
+- Do not ask a follow-up "while we're here" decision in the same turn.
+
+All lower-priority open items must be collapsed into one of these buckets instead of additional questions:
+
+- `assumptions` — reversible, low-risk, in-scope defaults you can choose safely
+- `deferred decisions` — real open decisions that are not the top blocking concern for this turn
+- `risks` — concerns that should be visible but do not require immediate approval
+
+Only if the user explicitly requests batched decisions may you ask more than one concern, and even then keep them tightly scoped.
 
 Autonomous continuation is allowed only for reversible, in-scope decisions such as:
 
