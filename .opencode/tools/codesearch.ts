@@ -228,12 +228,12 @@ Search order: project-local \`node_modules/.bin/ast-grep\` first, then system PA
     let raw = ""
     let spawnErr: string | null = null
     try {
-      // C7: use --json (standard JSON array) instead of --json=compact for
-      // better version compatibility. compact mode can emit streaming JSON that
-      // JSON.parse cannot handle in one shot.
+      // C7: --json=compact outputs a single-line JSON array (one shot, no
+      // streaming). Verified compatible with ast-grep 0.43.0. --json (pretty)
+      // also works but is larger; compact is faster to transfer and parse.
       const { stdout, stderr } = await exec(
         bin,
-        ["run", "--pattern", args.pattern, "--lang", lang, "--json", searchPath],
+        ["run", "--pattern", args.pattern, "--lang", lang, "--json=compact", searchPath],
         { maxBuffer: 50 * 1024 * 1024, timeout: 60_000 },
       )
       raw = stdout
