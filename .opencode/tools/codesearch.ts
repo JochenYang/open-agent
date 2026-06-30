@@ -146,7 +146,10 @@ Pattern syntax:
   Literal text must match exactly.
 
 Output: file:line:col per match, with the matched snippet.
-Default caps at 50 results per call; raise maxResults if you need more.
+Default caps at 30 results per call; raise maxResults if you need more.
+Note: ast-grep run has an internal hard cap of 250 matches. If the result
+count is exactly 250, the search may be incomplete — narrow the path or
+pattern for full coverage.
 
 Supported languages (20+): typescript, tsx, javascript, jsx, python, rust,
 go, java, c, cpp, csharp, css, html, bash, json, yaml, toml, svelte,
@@ -174,7 +177,7 @@ Requires ast-grep binary on PATH (no npm install needed).`,
       .optional(),
     maxResults: tool.schema
       .number()
-      .describe("Maximum number of matches to return. Defaults to 50.")
+      .describe("Maximum number of matches to return. Defaults to 30. ast-grep run caps at 250 internally.")
       .optional(),
   },
 
@@ -218,7 +221,7 @@ codesearch needs the ast-grep binary. Pick ONE install method:
 Search order: project-local \`node_modules/.bin/ast-grep\` first, then system PATH.`
     }
 
-    const max = args.maxResults ?? 50
+    const max = args.maxResults ?? 30
 
     // P1 fix: use ast-grep native directory scan instead of per-file spawn.
     // Previously we walked the tree and spawned ast-grep once per file (N spawns
@@ -278,13 +281,20 @@ Search order: project-local \`node_modules/.bin/ast-grep\` first, then system PA
     const truncated = withMtime.length > max
     const shown = withMtime.slice(0, max).map((x) => x.match)
 
-    // ── format output ──
+    // ── format output with adaptive degradation ──
+    // When match count is small: show full detail (file:line:col + 5 lines code)
+    // When growing: degrade to compact (file:line:col only, no code)
+    // When large: degrade to aggregate (file: count table)
+    // This prevents opencode's tool-output truncation on big result sets.
+    const OUTPUT_BUDGET = 8192
+    const AST_GREP_CAP = 250
     const lines: string[] = []
     lines.push(
       `codesearch: pattern="${args.pattern}" lang=${lang} path=${searchPath}`,
     )
+    const hitCap = withMtime.length === AST_GREP_CAP
     lines.push(
-      `  matches: ${withMtime.length}${truncated ? ` (showing first ${max}, sorted by mtime newest-first)` : " (sorted by mtime newest-first)"}`,
+      `  matches: ${withMtime.length}${truncated ? ` (showing first ${max}, sorted by mtime newest-first)` : " (sorted by mtime newest-first)"}${hitCap ? " — WARNING: hit ast-grep internal cap of 250, results may be incomplete" : ""}`,
     )
 
     if (shown.length === 0) {
@@ -292,10 +302,62 @@ Search order: project-local \`node_modules/.bin/ast-grep\` first, then system PA
       lines.push("  No matches.")
     } else {
       lines.push("")
+      // Try detailed mode first, degrade if output exceeds budget
+      const detailed: string[] = []
+      let detailedBytes = 0
+      let degradedToCompact = false
+      let degradedToAggregate = false
+
       for (const m of shown) {
         const r = m.range?.start ?? { line: 0, column: 0 }
         const file = m.file ? path.relative(projectDir, m.file) : "?"
-        lines.push(formatMatch(file, r.line + 1, r.column + 1, m.text ?? ""))
+        let block: string
+        if (!degradedToCompact) {
+          block = formatMatch(file, r.line + 1, r.column + 1, m.text ?? "")
+        } else {
+          // Compact: one line per match, no code body
+          block = `  ${file}:${r.line + 1}:${r.column + 1}`
+        }
+        const blockBytes = Buffer.byteLength(block, "utf-8")
+        if (detailedBytes + blockBytes > OUTPUT_BUDGET && !degradedToCompact) {
+          // Degrade to compact mode
+          degradedToCompact = true
+          detailed.push("")
+          detailed.push(`  (output exceeded ${OUTPUT_BUDGET} bytes, switching to compact mode)`)
+          detailed.push("")
+          // Re-add this match in compact form
+          block = `  ${file}:${r.line + 1}:${r.column + 1}`
+        }
+        if (degradedToCompact && detailedBytes + blockBytes > OUTPUT_BUDGET) {
+          // Compact still too large → degrade to aggregate
+          degradedToAggregate = true
+          break
+        }
+        detailed.push(block)
+        detailedBytes += blockBytes
+      }
+
+      if (degradedToAggregate) {
+        // Aggregate: group by file, show count per file
+        const byFile = new Map<string, number>()
+        for (const x of withMtime) {
+          const f = x.match.file ? path.relative(projectDir, x.match.file) : "?"
+          byFile.set(f, (byFile.get(f) ?? 0) + 1)
+        }
+        const sorted = [...byFile.entries()].sort((a, b) => b[1] - a[1])
+        lines.push(`  (too many matches, showing aggregate by file)`)
+        lines.push("")
+        for (const [file, count] of sorted) {
+          lines.push(`  ${String(count).padStart(4)}  ${file}`)
+        }
+        lines.push("")
+        lines.push(`  (${byFile.size} files, ${withMtime.length} matches total)`)
+      } else {
+        lines.push(...detailed)
+        if (degradedToCompact) {
+          lines.push("")
+          lines.push(`  (compact mode: file:line:col only, code bodies omitted)`)
+        }
       }
     }
 
