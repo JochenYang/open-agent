@@ -35,9 +35,10 @@
 - **Skill 驱动编排** — Forge agent 不再硬编码工作流，而是按任务特征动态加载 19 个 Skill；新增工作流 = 加一份 SKILL.md
 - **专长子代理可调** — Reviewer / Guard / Tester / Detective / Builder / DBA / Perf / Ops / Explore 九个职责清晰的 subagent，覆盖审查、调试、TDD、实现、数据库、性能、部署、AST 代码搜索
 - **规格优先与两阶段评审** — 复杂任务先经 brainstorm 形成 spec，subagent 工作完毕后由 spec-reviewer + code-quality-reviewer 双轨复核
+- **SDD 活文档追踪** — plan 文件随执行 live 更新，task checkbox 勾选 + loop stage 转换写入 `## Execution Progress` / `## Loop Trace`，项目内可审计，`forge:resume` 优先读
 - **证据优先与防侥幸** — `rules/evidence-first.md` 引入 L1–L4 证据分级，所有非显然结论强制标注证据等级与验证路径
 - **自带工程工具** — 内置 `dep-graph` / `dead-code` / `schema-diff` / `git-conventions` / `vision` / `codesearch` 六大跨语言静态分析与协作工具
-- **任务卡与里程碑** — `punchcard` 跟踪每条 T1/T1.1 任务，`forge-check` 记录 plan-complete / merge-ready 等阶段检查点
+- **三层任务追踪** — `punchcard` 跟踪 T1/T1.1 工作项状态机，`forge-check` 记录 loop stage checkpoint，plan 文件的 `## Execution Progress` + `## Loop Trace` 提供项目内可审计的执行轨迹
 - **Mission 自治模式** — 通过 `opencode-mission` 插件可下达带预算的长任务，达成条件后由独立 verify 子代理裁定完成
 - **MCP 即插即用** — 默认接入 context7（库文档）、exa（联网检索）、interleaved-thinking（结构化推理）、time-mcp（时间换算）
 
@@ -114,10 +115,10 @@ graph TB
 |--------|--------------|-----------------------------------------------------------------------|
 | 探索   | `brainstorm` | 当实现方向仍有设计分歧时用于收敛方案，必要时输出可签字的 spec          |
 | 探索   | `ask`        | 决策、澄清、审批的统一入口；禁止用普通提问替代正式决策协议               |
-| 编排   | `loop`       | 自动判断是否启动闭环，定义 rubric，并按 verify 结果 ship 或 iterate     |
+| 编排   | `loop`       | 自动判断是否启动闭环，定义 rubric，并按 verify 结果 ship 或 iterate；stage 转换写入 plan 的 `## Loop Trace` 供审计 |
 | 编排   | `resume`     | 从最近 forge-check checkpoint 重建 loop 状态，跨会话续跑，不靠聊天记忆  |
 | 探索   | `discovery`  | 计划或实现前探查最小代码切片、影响面、约束与风险                        |
-| 规划   | `plan`       | 把 spec 拆成多步任务，写成可执行 plan                                  |
+| 规划   | `plan`       | 把 spec 拆成多步任务，写成可执行 plan；plan 是活文档，executor 回写 checkbox + progress + loop trace |
 | 执行   | `subagent`   | 通过 `task` 派发独立 subagent，独立任务同一响应并行发出，强制两阶段评审 |
 | 执行   | `execute`    | 在新 session 中执行已写好的 plan，带 review checkpoint                 |
 | 执行   | `tdd`        | 强制 RED-GREEN-REFACTOR-VERIFY，禁止跳测试                             |
@@ -304,7 +305,7 @@ opencode
 /agents
 ```
 
-应能看到 `forge (primary)` 与 Reviewer / Guard / Detective / Tester / Builder / DBA / Perf / Ops 八个 subagent。
+应能看到 `forge (primary)` 与 Reviewer / Guard / Detective / Tester / Builder / DBA / Perf / Ops / Explore 九个 subagent。
 
 ---
 
@@ -314,6 +315,7 @@ opencode
 
 ```jsonc
 {
+  "$schema": "https://opencode.ai/config.json",
   "default_agent": "build",        // 默认主代理，可通过 Tab 切到 forge
   "instructions": [                // 顶层规则集，按顺序加载
     "~/.config/opencode/rules/character.md",
@@ -324,6 +326,7 @@ opencode
     "~/.config/opencode/rules/context-compression.md",
     "~/.config/opencode/rules/evidence-first.md"
   ],
+  "lsp": true,                     // 启用 LSP 集成
   "skills": {
     "paths": ["~/.config/opencode/forge-skills"]   // 注册 19 个 SKILL.md
   },
@@ -342,6 +345,12 @@ opencode
   "permission": {
     "bash": { "*": "allow", "rm *": "ask", "Remove-Item *": "ask", "git rm*": "ask" },
     "external_directory": "allow"
+  },
+  "provider": {                     // 自定义 provider（按需）
+    "minimax-国内": {
+      "npm": "@ai-sdk/openai-compatible",
+      "options": { "apiKey": "{env:MINIMAX_API_KEY}", "baseURL": "https://api.minimaxi.com/v1" }
+    }
   }
 }
 ```
@@ -376,11 +385,40 @@ open-agent/
     │   └── Ops.md                 #   subagent — 部署运维
     ├── forge-skills/            # 19 个 SKILL.md（ask/brainstorm/.../worktree）
     ├── tools/                   # 6 个自定义 TS 工具 + parsers/（7 种语言）
-    ├── plugins/                 # 4 个 plugin（forge / notification / mission / vision-helper）
+    ├── plugins/                 # forge / notification / mission / vision-helper + TUI 插件
     ├── rules/                   # 6 套规则（character / coding-standards / ...）
     ├── themes/                  # 4 套主题（mimo / minimax / mytheme / smoke）
     └── commands/
 ```
+
+---
+
+## Forge 工作流
+
+Forge 把一个用户请求变成一个有契约、有证据、有复盘的交付闭环：
+
+```mermaid
+graph LR
+    R["路由判断"] --> D["Discovery"]
+    D --> B["Brainstorm"]
+    B --> P["Plan"]
+    P --> E["Execute"]
+    E --> V["Verify"]
+    V -->|pass| S["Ship / Reflect"]
+    V -->|fail| E
+```
+
+| 阶段       | Skill            | 产出                                                              |
+|------------|------------------|-------------------------------------------------------------------|
+| 路由判断   | `Forge.md`       | 4 route（Direct / Structured / Loop / Resume）+ semantic predicate |
+| Discovery  | `forge:discovery` | 最小代码切片、影响面、约束、风险                                   |
+| Brainstorm | `forge:brainstorm` | 可签字 spec（仅在开放设计空间时）                                  |
+| Plan       | `forge:plan`       | 可执行 plan（活文档，executor 回写 progress + loop trace）          |
+| Execute    | `forge:subagent` / `forge:execute` | 代码 + 测试 + commit（punchcard 跟踪 T1/T1.1）           |
+| Verify     | `forge:verify`     | rubric 裁决 pass / fail / blocked（硬门禁）                        |
+| Ship       | `forge:merge` / `forge:report` / `forge:reflect` | 合并、报告、复盘                      |
+
+Loop 是这个闭环的"加速器"：verify fail 时自动改 strategy 重跑，用满 budget（默认 3 轮）才升级汇报。
 
 ---
 
