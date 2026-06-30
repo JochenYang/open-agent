@@ -12,8 +12,41 @@ const speedFormat = new Intl.NumberFormat("en-US", {
   maximumSignificantDigits: 3,
 })
 
-function tokenTotal(msg: AssistantMessage): number {
-  return msg.tokens.input + msg.tokens.output + msg.tokens.reasoning + msg.tokens.cache.read + msg.tokens.cache.write
+/**
+ * Compute current context size (total tokens) for sidebar display.
+ *
+ * Prefers step-finish parts over msg.tokens because msg.tokens is
+ * overwritten per step and is 0 before the first finish-step arrives,
+ * which would collapse the sidebar to "0 tokens / 0%" mid-generation.
+ *
+ * Takes the LATEST step-finish (not the sum): each step's `input` already
+ * carries the full conversation history up to that point, so summing would
+ * double-count history.
+ *
+ * If the current message has no step-finish yet (still in its first step),
+ * fall back to the previous completed assistant message's tokens as a
+ * baseline so the sidebar keeps showing a meaningful number instead of 0.
+ */
+function contextTokens(
+  msg: AssistantMessage,
+  parts: ReadonlyArray<Part>,
+  fallback?: AssistantMessage,
+): number {
+  const sum = (t?: { input?: number; output?: number; reasoning?: number; cache?: { read?: number; write?: number } }) =>
+    (t?.input ?? 0) + (t?.output ?? 0) + (t?.reasoning ?? 0) + (t?.cache?.read ?? 0) + (t?.cache?.write ?? 0)
+
+  // Latest step-finish part wins: its input carries full history up to this step
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const p = parts[i]
+    if (p.type === "step-finish" && p.tokens) {
+      return sum(p.tokens)
+    }
+  }
+  // No step-finish yet (first step still streaming): use msg.tokens if non-zero,
+  // otherwise the previous completed message's tokens as a non-zero baseline.
+  const cur = sum(msg.tokens)
+  if (cur > 0) return cur
+  return fallback ? sum(fallback.tokens) : 0
 }
 
 /**
@@ -89,15 +122,24 @@ const tui: TuiPlugin = async (api) => {
               (m.tokens?.reasoning ?? 0) > 0),
         )
         const assistant = last as AssistantMessage | undefined
-        const tokens = assistant ? tokenTotal(assistant) : 0
-        const model = assistant
-          ? api.state.provider.find((item) => item.id === assistant.providerID)?.models[assistant.modelID]
-          : undefined
-        const percent = model?.limit.context ? Math.round((tokens / model.limit.context) * 100) : 0
         // Fetch parts once per render to feed the cumulative token counter.
         // state.part() is a synchronous cached lookup (no await), so the 1s
         // tick cadence and render latency are unchanged.
         const parts = assistant ? api.state.part(assistant.id) : []
+        // Previous completed assistant message, used as a context baseline
+        // when the current message is still in its first step (no step-finish
+        // part yet) so the sidebar does not collapse to 0 mid-generation.
+        const lastIdx = assistant ? all.indexOf(last) : -1
+        const fallback = lastIdx > 0
+          ? (all.slice(0, lastIdx).findLast(
+              (m) => m?.role === "assistant" && !m.error && m.time?.completed != null,
+            ) as AssistantMessage | undefined)
+          : undefined
+        const tokens = assistant ? contextTokens(assistant, parts, fallback) : 0
+        const model = assistant
+          ? api.state.provider.find((item) => item.id === assistant.providerID)?.models[assistant.modelID]
+          : undefined
+        const percent = model?.limit.context ? Math.round((tokens / model.limit.context) * 100) : 0
         const speed = assistant ? calcSpeed(assistant, parts, Date.now()) : null
         // Distinguish "still generating, no step-finish yet" from "no data".
         // The former shows "..." so the user knows it is measuring, not dead.
