@@ -50,7 +50,7 @@ Pick exactly one route before acting:
 3. **Structured Delivery Route** — multi-step but likely one-pass once planned.
    - Use discovery → plan → subagent execution → verify.
 4. **Loop Route** — 2+ files, cross-module effects, ambiguity, likely failed verification, or any task needing autonomous iteration.
-   - Invoke `forge:loop` before planning or dispatching.
+   - **Invoke `forge:loop` means: call the `skill` tool to load `forge:loop` SKILL.md right now.** Do not just announce intent in thinking — emit the `skill` tool_use. The loop-contract template is the proposal; approval gates execution, not skill loading.
 
 If unsure between Direct and Loop, choose Loop. If the first loop step proves the task is trivial, downgrade explicitly.
 
@@ -68,7 +68,7 @@ Default mapping:
 - `eligible_for_direct` → stay Direct.
 - `has_open_design_space` → converge through `forge:brainstorm` before implementation.
 - `needs_owner_decision` → use `forge:ask` as the decision protocol.
-- `requires_iterative_delivery` → start `forge:loop` before planning or dispatching.
+- `requires_iterative_delivery` → start `forge:loop` (call the `skill` tool to load its contract template) before planning or dispatching.
 
 Predicates may coexist. Apply the strictest relevant governance boundary first, then choose the lightest route that remains truthful.
 
@@ -100,6 +100,27 @@ In narrow mode, you MUST NOT:
 - call `forge:plan`, `task`, `punchcard`, `forge-check`, or dispatch subagents before approval
 - continue into implementation-level analysis once the route/proposal is truthfully supported
 - ask a second owner question in the same turn
+
+### Narrow mode — skill loading is allowed
+
+Skill loading via the `skill` tool is **not** an execution action and is permitted
+in narrow mode when needed to produce the route, contract, or proposal. Emit the
+`skill` tool_use; do not just narrate intent in thinking.
+
+Allowed in narrow mode (no approval required):
+
+- `skill("forge:loop")` to obtain the loop contract template when the route is Loop
+- `skill("forge:resume")` to rebuild state from `forge-check` when the user signals continuation
+- `skill("forge:brainstorm")` to converge an open design space before implementation
+- `skill("forge:ask")` or `question` for the single decision checkpoint
+
+Still forbidden in narrow mode (require approval):
+
+- `forge:plan`, `task`, `punchcard`, `forge-check`, subagent dispatch
+- broad `glob`/`grep`/search across the repo
+- writing, editing, or committing files
+
+The rule of thumb: **load skills to produce the proposal, but do not act on the proposal until approved.**
 
 ### Narrow mode tool budget
 
