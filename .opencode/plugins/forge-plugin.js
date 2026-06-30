@@ -56,7 +56,10 @@ function writeText(p, content) {
 
 function writeTextAtomic(p, content) {
   ensureDir(path.dirname(p))
-  const tmp = path.join(path.dirname(p), `.${path.basename(p)}.${process.pid}.tmp`)
+  // B3 fix: tmp name must be unique across concurrent upserts in the same process.
+  // process.pid alone collides when the same stage is upserted twice in one session.
+  const suffix = `${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2, 8)}`
+  const tmp = path.join(path.dirname(p), `.${path.basename(p)}.${suffix}.tmp`)
   fs.writeFileSync(tmp, content, "utf-8")
   fs.renameSync(tmp, p)
 }
@@ -352,8 +355,20 @@ function pruneCheckpoints(project, sid, max) {
   const limit = max || CHECK_MAX_FILES
   const items = listChecks(project, sid)
   if (items.length <= limit) return 0
+  // B2 fix: listChecks sorts by filename ts, but upsert preserves the old ts when
+  // overwriting. A freshly-upserted file would sort as "old" and get pruned.
+  // Re-sort by actual file mtime (newest first) before deciding what to drop.
+  const byMtime = items
+    .map((it) => {
+      let mtime = 0
+      try {
+        mtime = fs.statSync(it.path).mtimeMs
+      } catch {}
+      return { ...it, mtime }
+    })
+    .sort((a, b) => b.mtime - a.mtime)
   let removed = 0
-  for (const it of items.slice(limit)) {
+  for (const it of byMtime.slice(limit)) {
     try {
       fs.unlinkSync(it.path)
       removed++
@@ -473,9 +488,14 @@ const forgeCheckTool = tool({
         if (!CHECK_FILE_RE.test(safe)) {
           return `forge-check.get: invalid filename "${safe}" — must match <timestamp>-<stage>.md`
         }
-        const full = path.join(checkDir(project, sid), safe)
+        const dir = checkDir(project, sid)
+        const full = path.join(dir, safe)
         const resolved = path.resolve(full)
-        if (!resolved.startsWith(path.resolve(checkDir(project, sid)))) {
+        // B1 fix: path.relative is more robust than startsWith on Windows where
+        // 8.3 short paths (ADMINI~1 vs Administrator) or drive-case differences
+        // can cause false negatives. If relative path escapes the dir, deny.
+        const rel = path.relative(path.resolve(dir), resolved)
+        if (rel.startsWith("..") || path.isAbsolute(rel)) {
           return "forge-check.get: path traversal denied"
         }
         const text = readText(resolved)
