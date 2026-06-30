@@ -91,12 +91,24 @@ function checkPeriod(msg: string): CheckResult {
   return { status: "pass", label: "Period", detail: "No trailing period on subject" }
 }
 
+/**
+ * Detect AI-generated commit signatures.
+ *
+ * Only flag explicit trailer/footer markers. A literal "claude" or "opencode"
+ * mention in the subject or body is legitimate (this project itself is named
+ * opencode, and commits often discuss provider integrations). Match either a
+ * `Co-Authored-By:` trailer line or a recognizable "Generated with/by <tool>"
+ * signature with the robot emoji.
+ */
+const AI_SIGNATURE_REGEX =
+  /(^co-authored-by:.*$|generated (?:with|by) (?:claude|opencode|copilot|cursor|chatgpt|gpt)|🤖)/im
+
 function checkAiSignature(msg: string): CheckResult {
-  if (/co-authored-by:|claude|opencode/i.test(msg)) {
+  if (AI_SIGNATURE_REGEX.test(msg)) {
     return {
       status: "error",
       label: "AI Signature",
-      detail: "Must not contain Co-Authored-By, Claude, or Opencode signatures",
+      detail: "Must not contain Co-Authored-By trailers or 'Generated with/by <AI>' signatures",
     }
   }
   return { status: "pass", label: "AI Signature", detail: "No AI signature" }
@@ -182,7 +194,19 @@ function checkBodyQuality(msg: string): CheckResult {
   return { status: "pass", label: "Body", detail: "Clean body, within size limits" }
 }
 
+/**
+ * Branches exempt from the `<type>/<name>` prefix convention.
+ *
+ * These are long-lived integration branches where committing directly is a
+ * legitimate workflow. Warning on them would just be noise on every commit,
+ * which is the symptom the user reported ("feels like repeated warnings").
+ */
+const MAIN_BRANCHES = new Set(["main", "master", "develop", "dev", "trunk", "production"])
+
 function checkBranch(branch: string): CheckResult {
+  if (MAIN_BRANCHES.has(branch)) {
+    return { status: "pass", label: "Branch Name", detail: `Main branch '${branch}' exempt from prefix convention` }
+  }
   const valid = BRANCH_PREFIXES.some(p => branch.startsWith(`${p}/`))
   if (!valid) {
     return {
@@ -330,6 +354,7 @@ What it does:
 How to use:
   - During commit: pass message + branch + files, returns validation results + convention guide
   - View conventions only: call with no args, returns the full guide
+  - Set include_guide=false to get validation results only (skip the full guide)
   - This tool does NOT generate message content -- only validates and guides`,
 
   args: {
@@ -344,6 +369,10 @@ How to use:
     files: tool.schema
       .array(tool.schema.string())
       .describe("List of changed file paths")
+      .optional(),
+    include_guide: tool.schema
+      .boolean()
+      .describe("If true (default), append the full convention guide. Set false for validation results only.")
       .optional(),
   },
 
@@ -382,8 +411,12 @@ How to use:
       output.push("")
     }
 
-    // ── Always append convention guide ──
-    output.push(buildGuide(args.files))
+    // ── Append convention guide unless explicitly suppressed ──
+    // The guide is ~90 lines; callers validating a known-good message can pass
+    // include_guide=false to keep output focused on the validation result.
+    if (args.include_guide !== false) {
+      output.push(buildGuide(args.files))
+    }
 
     return output.join("\n")
   },
