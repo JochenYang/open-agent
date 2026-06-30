@@ -155,6 +155,32 @@ Checkpoint schema:
 
 Do not rely on chat memory for any field another session will need.
 
+## Project-Visible Trace (Loop Trace)
+
+`forge-check` is the engine-internal state. The **project-visible** trace lives in
+the plan file's `## Loop Trace` section (see `forge:plan`'s "Living Plan Document"
+contract). Write one line to the plan file at every stage transition:
+
+- `loop-start` — when the loop contract is established (before any execution)
+- `iteration-N` — when a verify fails and a new strategy pass begins (include the
+  failure reason and the strategy change)
+- `verify-failed` — same as `iteration-N` if you prefer this label
+- `ship-ready` — when the rubric passes (include residual risks)
+
+Format:
+
+```markdown
+- <ISO-8601 timestamp> — <stage> — <one-line summary>
+```
+
+Why both `forge-check` and the plan trace:
+- `forge-check` (home dir, JSON) is for cross-session engine resume.
+- Plan `## Loop Trace` (project, markdown, committed) is for auditability and
+  `forge:reflect`.
+
+If the plan file is missing or read-only, fall back to `forge-check` only and state
+the gap in your report.
+
 ## Resume Protocol
 
 If the user asks to continue or resume:

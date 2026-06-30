@@ -29,6 +29,14 @@ For each task:
 2. Follow each step exactly (plan has bite-sized steps)
 3. Run verifications as specified
 4. Mark as completed
+5. **Write back to the plan file** — flip the task's `- [ ]` checkbox to `- [x]` and
+   append a line to the plan's `## Execution Progress` section (see `forge:plan`'s
+   "Living Plan Document" contract). The line MUST include: commit SHA, verify
+   verdict, ISO-8601 timestamp. If verify failed and you are iterating, leave the
+   checkbox `- [ ]` and append an `iteration-N` line to `## Loop Trace` instead.
+
+Skipping the writeback is a false completion. The task is not "done" until the plan
+document reflects it.
 
 ### Step 3: Complete Development
 

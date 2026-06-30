@@ -207,3 +207,59 @@ After saving the plan, determine execution approach:
 **If Subagent:** Use `forge:subagent` — fresh subagent per task + two-stage review. Each task gets a TID via `punchcard` and is bound to the implementer subagent via the upstream `task` tool.
 
 **If Inline:** Use `forge:execute` — batch execution with checkpoints in the orchestrator's own context.
+
+## Living Plan Document (SDD Trace)
+
+A plan is not frozen once written. It is a **living document** that executors write
+back to as work proceeds, so any session can reconstruct what was done, when, and
+why — without relying on chat memory or home-directory state.
+
+### Required sections executors append to the plan file
+
+**1. `## Execution Progress`** — appended once per task completion.
+
+```markdown
+## Execution Progress
+
+- [x] Task 1 (commit: abc1234) — verify pass — 2026-06-30T14:21
+- [x] Task 2 (commit: def5678) — verify pass — 2026-06-30T14:45
+- [ ] Task 3 — in_progress
+- [ ] Task 4 — pending
+```
+
+Rules:
+- Flip the task's `- [ ]` checkbox to `- [x]` when the task passes `forge:verify`.
+- Leave it `- [ ]` with an `in_progress` / `blocked` / `pending` annotation otherwise.
+- Each completed line MUST include: commit SHA (or "no commit yet"), verify verdict, ISO-8601 timestamp.
+
+**2. `## Loop Trace`** — appended once per loop stage transition (only when the plan
+runs under `forge:loop`).
+
+```markdown
+## Loop Trace
+
+- 2026-06-30T14:20 — loop-start — budget: 3/3 — rubric: 5 items
+- 2026-06-30T14:45 — iteration-1 — Task 2 verify fail (missing progress reporting) — strategy: add PROGRESS_INTERVAL constant
+- 2026-06-30T15:02 — ship-ready — all rubric items pass — residual: none
+```
+
+Rules:
+- One line per stage: `loop-start`, `iteration-N`, `verify-failed`, `ship-ready`.
+- `iteration-N` lines MUST include the failure reason and the strategy change.
+- `ship-ready` lines MUST include residual risks.
+
+### Why this matters
+
+- **Auditability:** owners can see the execution trajectory inside the project, not in home-dir JSON.
+- **Cross-session resume:** `forge:resume` reads this section first; only falls back to `forge-check` if it is missing.
+- **Reflect fodder:** `forge:reflect` uses the Loop Trace to spot repeated failure patterns.
+- **Git log complement:** git records commits; the plan records *why* a commit was needed and *whether* it passed verify.
+
+### Executor contract
+
+Both `forge:execute` and `forge:subagent` MUST write back to these sections after
+each task and each loop stage transition. Skipping the writeback is a false
+completion — the work is not "done" until the plan document reflects it.
+
+If the plan file is read-only or missing, stop and report rather than silently
+proceeding without trace.

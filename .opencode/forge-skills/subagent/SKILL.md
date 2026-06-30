@@ -107,6 +107,14 @@ Do not make the subagent discover the plan or intent from scratch if you already
 5. Handle the returned `Status`.
 6. If implementation work occurred, run the review loop.
 7. Mark the work-item done only after the relevant review / verify gate passes.
+8. **Write back to the plan file** — flip the task's `- [ ]` checkbox to `- [x]` and
+   append a line to the plan's `## Execution Progress` section (see `forge:plan`'s
+   "Living Plan Document" contract). The line MUST include: commit SHA, verify
+   verdict, ISO-8601 timestamp. If the task is iterating on a verify failure, leave
+   the checkbox `- [ ]` and append an `iteration-N` line to `## Loop Trace` instead.
+
+Skipping the writeback is a false completion — the task is not "done" until the plan
+document reflects the verify-pass state.
 
 ## Handling Returned Status
 
